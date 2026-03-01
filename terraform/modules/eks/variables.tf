@@ -37,7 +37,7 @@ variable "private_subnet_ids" {
 variable "node_instance_type" {
   description = "EC2 instance type for worker nodes"
   type        = string
-  default     = "t3.micro"
+  default     = "t2.medium"
 }
 
 variable "node_desired_count" {

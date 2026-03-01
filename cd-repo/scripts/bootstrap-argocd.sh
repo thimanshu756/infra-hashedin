@@ -104,6 +104,12 @@ sleep 5
 echo "Applying microservices appset (sync wave 0)..."
 kubectl apply -f "$(dirname "$0")/../argocd/applicationsets/microservices-appset.yaml"
 
+echo "Waiting 5s..."
+sleep 5
+
+echo "Applying platform phase4 apps (database, api-gateway, monitoring, logging)..."
+kubectl apply -f "$(dirname "$0")/../argocd/applicationsets/platform-phase4-apps.yaml"
+
 # ── 8. Summary ──
 echo ""
 echo "============================================="

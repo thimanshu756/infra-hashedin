@@ -26,7 +26,7 @@ variable "subnet_id" {
 variable "instance_type" {
   description = "EC2 instance type for the bastion"
   type        = string
-  default     = "t3.micro"
+  default     = "t2.medium"
 }
 
 variable "eks_cluster_name" {
