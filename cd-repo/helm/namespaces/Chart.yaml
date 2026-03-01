@@ -1,0 +1,4 @@
+apiVersion: v2
+name: namespaces
+description: All required Kubernetes namespaces for EKS assignment
+version: 0.1.0

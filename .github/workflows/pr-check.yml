@@ -1,0 +1,175 @@
+# =============================================================================
+# PR Validation Pipeline — Build & Scan Only (No Push to GCR)
+# =============================================================================
+# Triggers on pull requests targeting the main branch when app code changes.
+# Builds all 4 services in parallel and runs Trivy vulnerability scans.
+# Does NOT push images to GCR — that only happens on merge via ci.yml.
+# Gives developers fast security feedback before code is merged.
+# =============================================================================
+
+name: "PR — Build & Scan"
+
+on:
+  pull_request:
+    branches:
+      - "Deloitte-US/HU-DevOps-26-yourname"
+    paths:
+      - "app/**"
+      - ".github/workflows/pr-check.yml"
+
+permissions:
+  id-token: write         # Required for OIDC authentication to GCP
+  contents: read          # Read-only — PRs should never write to repo
+  pull-requests: write    # Required to post scan results as PR comment
+  security-events: write  # Required for SARIF upload to Security tab
+
+# =============================================================================
+# JOB: PR Validation — Build + Trivy Scan (no push)
+# =============================================================================
+# Separate workflow from ci.yml because:
+# 1. PRs need different permissions (read contents, write PR comments)
+# 2. PRs should NEVER push images to registry
+# 3. Cleaner separation: PR = validate, merge = deploy
+# =============================================================================
+jobs:
+  pr-validation:
+    name: "Validate — ${{ matrix.service }}"
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        service: [users-service, products-service, orders-service, frontend]
+      fail-fast: false    # Don't stop other services — show ALL failures in PR
+
+    steps:
+      # ── 1. Checkout code ──
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Set short SHA for image tag ──
+      - name: Set short image tag
+        id: vars
+        run: echo "SHORT_SHA=$(echo ${{ github.event.pull_request.head.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      # ── 3. Set up Docker Buildx ──
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── 4. Cache Docker layers ──
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache-${{ matrix.service }}
+          key: ${{ runner.os }}-buildx-${{ matrix.service }}-${{ github.event.pull_request.head.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-${{ matrix.service }}-
+
+      # ── 5. Build Docker image (NO push — PR validation only) ──
+      # load: true loads image into local Docker daemon for Trivy to scan
+      # push: false ensures image NEVER reaches registry from a PR
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/${{ matrix.service }}
+          push: false
+          load: true
+          tags: |
+            ${{ matrix.service }}:pr-${{ steps.vars.outputs.SHORT_SHA }}
+          cache-from: type=local,src=/tmp/.buildx-cache-${{ matrix.service }}
+          cache-to: type=local,dest=/tmp/.buildx-cache-${{ matrix.service }}-new,mode=max
+
+      # ── 6. Run Trivy vulnerability scan (SARIF format for GitHub Security tab) ──
+      # SARIF format integrates with GitHub's Security tab for rich UI
+      # exit-code: 1 — fail the PR check if CRITICAL vulnerabilities found
+      - name: Run Trivy vulnerability scan (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ matrix.service }}:pr-${{ steps.vars.outputs.SHORT_SHA }}
+          format: sarif
+          output: trivy-${{ matrix.service }}.sarif
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL
+
+      # ── 7. Upload SARIF results to GitHub Security tab ──
+      # always() — upload even if Trivy found vulnerabilities (so devs can see details)
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-${{ matrix.service }}.sarif
+          category: trivy-${{ matrix.service }}
+
+      # ── 8. Run Trivy again in table format for readable artifact ──
+      - name: Run Trivy scan (table format)
+        if: always()
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ matrix.service }}:pr-${{ steps.vars.outputs.SHORT_SHA }}
+          format: table
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          output: trivy-results-${{ matrix.service }}.txt
+
+      # ── 9. Upload Trivy table results as artifact ──
+      - name: Upload Trivy results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-pr-results-${{ matrix.service }}
+          path: trivy-results-${{ matrix.service }}.txt
+          retention-days: 14
+
+      # ── 10. Move Docker cache ──
+      - name: Move Docker cache
+        run: |
+          rm -rf /tmp/.buildx-cache-${{ matrix.service }}
+          mv /tmp/.buildx-cache-${{ matrix.service }}-new \
+             /tmp/.buildx-cache-${{ matrix.service }}
+
+  # ===========================================================================
+  # JOB 2: Post PR Summary Comment
+  # ===========================================================================
+  # Runs after all matrix jobs complete. Posts a single summary comment on the PR.
+  # Separate job so we get one comment, not 4 (one per service).
+  # ===========================================================================
+  pr-summary:
+    name: "PR Summary"
+    needs: pr-validation
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Post PR summary comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const result = '${{ needs.pr-validation.result }}';
+            const sha = '${{ github.event.pull_request.head.sha }}'.substring(0, 7);
+            const icon = result === 'success' ? '✅' : '❌';
+            const status = result === 'success' ? 'All checks passed' : 'Some checks failed';
+
+            const body = `## ${icon} CI Validation — \`${sha}\`
+
+            | Service | Build | Trivy Scan |
+            |---------|-------|------------|
+            | users-service | ${icon} | ${icon} |
+            | products-service | ${icon} | ${icon} |
+            | orders-service | ${icon} | ${icon} |
+            | frontend | ${icon} | ${icon} |
+
+            **Status:** ${status}
+            **Severity threshold:** CRITICAL only
+
+            > See the **Security** tab and **Artifacts** for detailed Trivy scan results.
+            > Full CI (build + push to GCR) runs after merge.`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

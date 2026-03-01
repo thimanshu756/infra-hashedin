@@ -1,0 +1,28 @@
+namespace: security
+
+kyverno:
+  replicaCount: 1    # Single replica — fits 2-node cluster
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  admissionController:
+    replicas: 1
+  backgroundController:
+    replicas: 1
+  cleanupController:
+    replicas: 1
+  reportsController:
+    replicas: 1
+
+# Namespaces where Kyverno policies and NetworkPolicies apply
+# System namespaces (kube-system, argocd, monitoring) are excluded
+# to avoid breaking platform components
+appNamespaces:
+  - frontend
+  - backend-users
+  - backend-products
+  - backend-orders

@@ -1,0 +1,9 @@
+apiVersion: v2
+name: database
+description: Percona PostgreSQL Operator and cluster
+type: application
+version: 0.1.0
+dependencies:
+  - name: pg-operator
+    version: "2.3.1"
+    repository: "https://percona.github.io/percona-helm-charts/"

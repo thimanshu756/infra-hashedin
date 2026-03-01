@@ -1,0 +1,19 @@
+# =============================================================================
+# Percona PostgreSQL Operator — installed via Helm subchart dependency
+# =============================================================================
+# The pg-operator subchart (declared in Chart.yaml) handles:
+#   - Operator Deployment
+#   - ServiceAccount + RBAC
+#   - CRDs (PerconaPGCluster, etc.)
+#
+# This file creates supplementary resources the operator needs.
+# The operator watches for PerconaPGCluster CRs in the database namespace
+# and reconciles the actual PostgreSQL instances.
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: percona-postgresql-operator
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: percona-postgresql-operator

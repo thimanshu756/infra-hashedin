@@ -1,0 +1,14 @@
+# =============================================================================
+# Trivy Ignore List — Known False Positives / Accepted Risks
+# =============================================================================
+# Add CVE IDs here to suppress known vulnerabilities that are:
+#   1. False positives (not applicable to our usage)
+#   2. Accepted risks (reviewed and documented)
+#   3. Awaiting upstream fixes (temporarily suppressed)
+#
+# Format: one CVE ID per line
+# Example: CVE-2023-12345
+#
+# IMPORTANT: Every entry MUST have a comment explaining WHY it's ignored.
+# Review this file quarterly and remove entries that have been patched.
+# =============================================================================

@@ -1,0 +1,52 @@
+replicaCount: 2
+
+image:
+  # TODO: Replace YOUR_GCP_PROJECT_ID with your GCP project ID
+  repository: gcr.io/YOUR_GCP_PROJECT_ID/users-service
+  tag: "latest"        # CI pipeline overwrites this with SHORT_SHA on every push
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: gcr-pull-secret
+
+nameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 5000
+
+namespace: backend-users
+
+config:
+  DB_HOST: "percona-db-pgbouncer.database.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "appdb"
+  OTEL_SERVICE_NAME: "users-service"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.monitoring.svc.cluster.local:4317"
+  OTEL_TRACES_EXPORTER: "otlp"
+  OTEL_PROPAGATORS: "tracecontext,baggage"
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "300m"
+    memory: "256Mi"
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 5000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 5000
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  failureThreshold: 3

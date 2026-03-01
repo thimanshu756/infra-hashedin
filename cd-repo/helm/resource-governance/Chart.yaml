@@ -1,0 +1,5 @@
+apiVersion: v2
+name: resource-governance
+description: ResourceQuota and LimitRange for all namespaces
+type: application
+version: 0.1.0

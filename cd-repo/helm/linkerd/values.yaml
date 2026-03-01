@@ -1,0 +1,37 @@
+meshNamespaces:
+  - frontend
+  - backend-users
+  - backend-products
+  - backend-orders
+
+# Zero-trust authorization policies
+# Define WHO can call WHAT
+policies:
+  # Only gateway can call frontend
+  - name: frontend-authz
+    namespace: frontend
+    targetApp: frontend
+    targetPort: 3000
+    allowedNamespace: api-gateway
+
+  # Only gateway can call users-service
+  # (backend-products calling backend-users must be DENIED)
+  - name: users-service-authz
+    namespace: backend-users
+    targetApp: users-service
+    targetPort: 5000
+    allowedNamespace: api-gateway
+
+  # Only gateway can call products-service
+  - name: products-service-authz
+    namespace: backend-products
+    targetApp: products-service
+    targetPort: 5000
+    allowedNamespace: api-gateway
+
+  # Only gateway can call orders-service
+  - name: orders-service-authz
+    namespace: backend-orders
+    targetApp: orders-service
+    targetPort: 5000
+    allowedNamespace: api-gateway

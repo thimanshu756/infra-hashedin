@@ -1,0 +1,74 @@
+# =============================================================================
+# Platform ApplicationSet — Multi-wave platform components
+# =============================================================================
+# Deploys platform components across multiple sync waves.
+# Each element specifies its own syncWave for proper ordering.
+#
+# Wave -1: Core prerequisites (secrets, security, resource governance)
+# Wave  1: Post-microservice components (KEDA)
+# Wave  3: Service mesh config (Linkerd policies — after mesh injection)
+#
+# For database, api-gateway, monitoring, logging see platform-phase4-apps.yaml.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: platform
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          # Wave -1: Core prerequisites
+          - component: gcr-pull-secret
+            namespace: argocd
+            syncWave: "-1"
+          - component: sealed-secrets
+            namespace: sealed-secrets
+            syncWave: "-1"
+          - component: security
+            namespace: security
+            syncWave: "-1"
+          - component: resource-governance
+            namespace: argocd
+            syncWave: "-1"
+
+          # Wave 1: Post-microservice components
+          - component: keda
+            namespace: keda
+            syncWave: "1"
+
+          # Wave 3: Service mesh config (after mesh injection)
+          - component: linkerd-config
+            namespace: argocd
+            syncWave: "3"
+
+  template:
+    metadata:
+      name: "{{component}}"
+      namespace: argocd
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{syncWave}}"
+    spec:
+      project: eks-assignment
+
+      source:
+        repoURL: https://github.com/YOUR_ORG/YOUR_CD_REPO
+        targetRevision: HU-DEVOPS-26-yourname
+        path: "helm/{{component}}"
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{namespace}}"
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=false
+        retry:
+          limit: 3
+          backoff:
+            duration: 30s
+            factor: 2

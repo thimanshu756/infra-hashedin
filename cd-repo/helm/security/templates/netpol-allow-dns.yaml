@@ -1,0 +1,25 @@
+# =============================================================================
+# NetworkPolicy — Allow DNS Egress
+# =============================================================================
+# DNS (port 53) must ALWAYS be allowed — without it pods can't resolve
+# any service names (*.svc.cluster.local) and everything breaks.
+# This is a fundamental requirement for any Kubernetes application.
+# =============================================================================
+{{- range .Values.appNamespaces }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: {{ . }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+{{- end }}

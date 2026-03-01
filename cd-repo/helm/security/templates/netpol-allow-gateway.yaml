@@ -1,0 +1,91 @@
+# =============================================================================
+# NetworkPolicy — Allow Kong Gateway to Reach Services
+# =============================================================================
+# Allows ingress from the api-gateway namespace to each app namespace.
+# Kong Gateway forwards HTTP traffic to backend services and frontend.
+# Each policy is namespace-specific with correct app labels and ports.
+# =============================================================================
+
+# Allow ingress from api-gateway to frontend (port 3000)
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-gateway
+  namespace: frontend
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: api-gateway
+      ports:
+        - port: 3000
+
+# Allow ingress from api-gateway to users-service (port 5000)
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-gateway
+  namespace: backend-users
+spec:
+  podSelector:
+    matchLabels:
+      app: users-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: api-gateway
+      ports:
+        - port: 5000
+
+# Allow ingress from api-gateway to products-service (port 5000)
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-gateway
+  namespace: backend-products
+spec:
+  podSelector:
+    matchLabels:
+      app: products-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: api-gateway
+      ports:
+        - port: 5000
+
+# Allow ingress from api-gateway to orders-service (port 5000)
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-gateway
+  namespace: backend-orders
+spec:
+  podSelector:
+    matchLabels:
+      app: orders-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: api-gateway
+      ports:
+        - port: 5000

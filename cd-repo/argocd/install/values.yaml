@@ -1,0 +1,75 @@
+# =============================================================================
+# ArgoCD Helm Install Values
+# =============================================================================
+# Used by: helm install argocd argo/argo-cd --values argocd/install/values.yaml
+# Chart: https://github.com/argoproj/argo-helm/tree/main/charts/argo-cd
+# =============================================================================
+
+global:
+  domain: ""    # No ingress — access via kubectl port-forward
+
+server:
+  service:
+    type: ClusterIP    # Internal only — no LoadBalancer needed
+
+  # Resource limits for ArgoCD server
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+configs:
+  params:
+    # Disable HTTPS — we use port-forward internally (no TLS termination needed)
+    server.insecure: true
+
+  cm:
+    # Poll CD repo every 3 minutes for changes
+    # ArgoCD also supports webhooks for instant sync
+    timeout.reconciliation: 180s
+
+    # Resource tracking method
+    application.resourceTrackingMethod: annotation
+
+  # Repository credentials are stored as K8s secrets, not in values
+  repositories: {}
+
+# Controller resources
+controller:
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# Repo server resources
+repoServer:
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "300m"
+      memory: "256Mi"
+
+# Redis resources
+redis:
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+
+# Disable components we don't need yet
+dex:
+  enabled: false    # No SSO for now
+
+notifications:
+  enabled: false    # Add in later phases if needed

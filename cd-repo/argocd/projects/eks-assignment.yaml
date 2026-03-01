@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: eks-assignment
+  namespace: argocd
+spec:
+  description: EKS Assignment Project — all microservices and platform components
+
+  # Source repos ArgoCD is allowed to deploy from
+  # TODO: Replace YOUR_ORG/YOUR_CD_REPO with your actual CD repo
+  sourceRepos:
+    - "https://github.com/YOUR_ORG/YOUR_CD_REPO"
+
+  # Destinations ArgoCD is allowed to deploy to
+  destinations:
+    - namespace: "*"
+      server: https://kubernetes.default.svc
+
+  # Cluster-scoped resources allowed (namespaces, CRDs, etc.)
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  # Namespace-scoped resources allowed
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  # Orphaned resources warning (resources in namespace not managed by ArgoCD)
+  orphanedResources:
+    warn: true

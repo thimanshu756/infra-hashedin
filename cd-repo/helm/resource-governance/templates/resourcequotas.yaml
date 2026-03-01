@@ -1,0 +1,21 @@
+{{- range .Values.quotas }}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: namespace-quota
+  namespace: {{ .namespace }}
+  annotations:
+    description: >
+      Quota for {{ .namespace }} namespace.
+      Prevents resource starvation on 2x t2.medium cluster.
+spec:
+  hard:
+    requests.cpu: {{ .requestsCpu | quote }}
+    requests.memory: {{ .requestsMemory | quote }}
+    limits.cpu: {{ .limitsCpu | quote }}
+    limits.memory: {{ .limitsMemory | quote }}
+    pods: {{ .pods | quote }}
+    services: "10"
+    persistentvolumeclaims: "5"
+{{- end }}

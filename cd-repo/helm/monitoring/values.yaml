@@ -1,0 +1,126 @@
+namespace: monitoring
+
+kube-prometheus-stack:
+  fullnameOverride: prometheus
+
+  # ── Prometheus ──
+  prometheus:
+    prometheusSpec:
+      retention: 7d
+      retentionSize: "8GB"
+
+      resources:
+        requests:
+          cpu: "200m"
+          memory: "512Mi"
+        limits:
+          cpu: "500m"
+          memory: "1Gi"
+
+      # Scrape ServiceMonitors from ALL namespaces (not just the Helm release namespace)
+      serviceMonitorSelectorNilUsesHelmValues: false
+      podMonitorSelectorNilUsesHelmValues: false
+      ruleSelectorNilUsesHelmValues: false
+
+      scrapeInterval: "15s"
+      evaluationInterval: "15s"
+
+      # Additional scrape configs for Flask /metrics endpoints
+      # prometheus-flask-exporter exposes metrics at /metrics on each service port
+      additionalScrapeConfigs:
+        - job_name: "flask-users-service"
+          static_configs:
+            - targets: ["users-service.backend-users.svc.cluster.local:5000"]
+          metrics_path: /metrics
+          scrape_interval: 15s
+
+        - job_name: "flask-products-service"
+          static_configs:
+            - targets: ["products-service.backend-products.svc.cluster.local:5000"]
+          metrics_path: /metrics
+          scrape_interval: 15s
+
+        - job_name: "flask-orders-service"
+          static_configs:
+            - targets: ["orders-service.backend-orders.svc.cluster.local:5000"]
+          metrics_path: /metrics
+          scrape_interval: 15s
+
+        - job_name: "flask-frontend"
+          static_configs:
+            - targets: ["frontend.frontend.svc.cluster.local:3000"]
+          metrics_path: /metrics
+          scrape_interval: 15s
+
+  # ── Grafana ──
+  grafana:
+    enabled: true
+    adminUser: admin
+    adminPassword: "admin123"    # Change for production
+
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "300m"
+        memory: "512Mi"
+
+    # Pre-configure all datasources so they appear on first login
+    additionalDataSources:
+      - name: Loki
+        type: loki
+        url: http://loki.logging.svc.cluster.local:3100
+        access: proxy
+        isDefault: false
+
+      - name: Tempo
+        type: tempo
+        url: http://tempo.monitoring.svc.cluster.local:3100
+        access: proxy
+        isDefault: false
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: "-1h"
+            spanEndTimeShift: "1h"
+            filterByTraceID: true
+            filterBySpanID: false
+          serviceMap:
+            datasourceUid: prometheus
+          lokiSearch:
+            datasourceUid: loki
+
+    # Load custom dashboards from ConfigMap
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+          - name: default
+            orgId: 1
+            folder: ""
+            type: file
+            disableDeletion: false
+            options:
+              path: /var/lib/grafana/dashboards/default
+
+    dashboardsConfigMaps:
+      default: "grafana-dashboards"
+
+    grafana.ini:
+      analytics:
+        check_for_updates: false
+      feature_toggles:
+        enable: traceqlEditor
+
+  # ── AlertManager — DISABLED (saves ~256MB RAM on 2-node cluster) ──
+  alertmanager:
+    enabled: false
+
+  # ── Node Exporter (node-level CPU, memory, disk metrics) ──
+  nodeExporter:
+    enabled: true
+
+  # ── Kube State Metrics (K8s object metrics — pods, deployments, etc.) ──
+  kubeStateMetrics:
+    enabled: true

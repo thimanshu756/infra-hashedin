@@ -1,0 +1,94 @@
+{{- $commonLabels := dict
+  "managed-by" "argocd"
+  "environment" "dev"
+  "project" "eks-assignment"
+}}
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: frontend
+  labels:
+    {{- toYaml $commonLabels | nindent 4 }}
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backend-users
+  labels:
+    {{- toYaml $commonLabels | nindent 4 }}
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backend-products
+  labels:
+    {{- toYaml $commonLabels | nindent 4 }}
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backend-orders
+  labels:
+    {{- toYaml $commonLabels | nindent 4 }}
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: database
+  labels:
+    {{- toYaml $commonLabels | nindent 4 }}
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: api-gateway
+  labels:
+    {{- toYaml $commonLabels | nindent 4 }}
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    {{- toYaml $commonLabels | nindent 4 }}
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: logging
+  labels:
+    {{- toYaml $commonLabels | nindent 4 }}
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+  labels:
+    {{- toYaml $commonLabels | nindent 4 }}
+    kubernetes.io/metadata.name: argocd
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sealed-secrets
+  labels:
+    {{- toYaml $commonLabels | nindent 4 }}
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: security
+  labels:
+    {{- toYaml $commonLabels | nindent 4 }}

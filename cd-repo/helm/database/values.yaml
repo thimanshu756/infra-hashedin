@@ -1,0 +1,36 @@
+namespace: database
+
+operator:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "300m"
+      memory: "256Mi"
+
+cluster:
+  name: percona-db
+  instances: 1          # Single instance — sufficient for dev assignment
+  storageSize: "10Gi"
+  storageClass: "gp2"   # AWS EBS gp2
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+pgbouncer:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"

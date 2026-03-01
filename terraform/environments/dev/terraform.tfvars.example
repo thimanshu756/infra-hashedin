@@ -1,0 +1,36 @@
+# =============================================================================
+# Terraform Variables — Dev Environment
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values.
+# terraform.tfvars is gitignored and must NEVER be committed.
+# =============================================================================
+
+# --- AWS ---
+aws_region     = "eu-west-1"
+aws_account_id = ""            # Your AWS account ID
+project_name   = "eks-assignment"
+environment    = "dev"
+owner          = "your-name"
+
+# --- VPC ---
+vpc_cidr             = "10.0.0.0/16"
+public_subnet_cidr   = "10.0.1.0/24"
+private_subnet_cidrs = ["10.0.2.0/24", "10.0.3.0/24"]
+availability_zones   = ["eu-west-1a", "eu-west-1b"]
+
+# --- EKS ---
+cluster_name       = "eks-assignment-cluster"
+kubernetes_version = "1.29"
+node_instance_type = "t3.micro"
+node_desired_count = 2
+node_min_count     = 2
+node_max_count     = 3
+
+# --- GitHub OIDC ---
+github_org    = ""             # Your GitHub org or username
+github_repo   = ""             # Your GitHub repo name
+github_branch = "IAC-DAY1"
+
+# --- GCP ---
+gcp_project_id = ""            # Your GCP project ID
+gcp_region     = "us-central1"

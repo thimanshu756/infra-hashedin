@@ -1,0 +1,36 @@
+namespace: keda
+
+keda:
+  resources:
+    operator:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+    metricServer:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+
+# ScaledObjects configuration
+scaledObjects:
+  # Scale users-service based on HTTP request rate
+  - name: users-service-scaler
+    namespace: backend-users
+    deploymentName: users-service
+    minReplicaCount: 2
+    maxReplicaCount: 4
+    pollingInterval: 15
+    cooldownPeriod: 60
+    trigger:
+      type: prometheus
+      serverAddress: http://prometheus-operated.monitoring.svc.cluster.local:9090
+      metricName: flask_http_requests_per_second
+      threshold: "10"
+      query: |
+        rate(flask_http_request_total{job="flask-users-service"}[1m])

@@ -1,0 +1,57 @@
+# =============================================================================
+# Microservices ApplicationSet — Sync Wave 0 (deploys LAST)
+# =============================================================================
+# Single ApplicationSet generates one ArgoCD Application per microservice.
+# List generator defines each service and its target namespace.
+# All 4 services deploy in parallel after namespaces and secrets are ready.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: microservices
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - service: users-service
+            namespace: backend-users
+          - service: products-service
+            namespace: backend-products
+          - service: orders-service
+            namespace: backend-orders
+          - service: frontend
+            namespace: frontend
+
+  template:
+    metadata:
+      name: "{{service}}"
+      namespace: argocd
+      annotations:
+        # Wave 0 — after namespaces (-2) and platform components (-1)
+        argocd.argoproj.io/sync-wave: "0"
+    spec:
+      project: eks-assignment
+
+      source:
+        # TODO: Replace YOUR_ORG/YOUR_CD_REPO with your actual CD repo
+        repoURL: https://github.com/YOUR_ORG/YOUR_CD_REPO
+        targetRevision: HU-DEVOPS-26-yourname
+        path: "helm/{{service}}"
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{namespace}}"
+
+      syncPolicy:
+        automated:
+          prune: true        # Delete resources removed from Git
+          selfHeal: true     # Revert manual kubectl changes
+        syncOptions:
+          - CreateNamespace=false    # Namespaces already created by namespaces app
+          - RespectIgnoreDifferences=true
+        retry:
+          limit: 3
+          backoff:
+            duration: 30s
+            factor: 2

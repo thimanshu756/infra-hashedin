@@ -1,0 +1,9 @@
+apiVersion: v2
+name: monitoring
+description: Prometheus + Grafana + Tempo + OTEL Collector observability stack
+type: application
+version: 0.1.0
+dependencies:
+  - name: kube-prometheus-stack
+    version: "56.6.2"
+    repository: "https://prometheus-community.github.io/helm-charts"

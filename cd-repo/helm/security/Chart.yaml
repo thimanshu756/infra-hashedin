@@ -1,0 +1,9 @@
+apiVersion: v2
+name: security
+description: Kyverno policies and NetworkPolicies for cluster security
+type: application
+version: 0.1.0
+dependencies:
+  - name: kyverno
+    version: "3.1.4"
+    repository: "https://kyverno.github.io/kyverno/"

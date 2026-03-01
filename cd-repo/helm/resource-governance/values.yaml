@@ -1,0 +1,99 @@
+# Resource budget rationale:
+# Total cluster: 4 vCPU, 8GB RAM (2x t2.medium)
+# Reserved for K8s system: ~1 vCPU, 2GB RAM
+# Reserved for platform (monitoring/logging/argocd): ~1 vCPU, 2GB RAM
+# Available for apps: ~2 vCPU, 4GB RAM
+
+quotas:
+  # App namespaces — tight but workable
+  - namespace: frontend
+    requestsCpu: "500m"
+    requestsMemory: "512Mi"
+    limitsCpu: "1000m"
+    limitsMemory: "1Gi"
+    pods: "10"
+
+  - namespace: backend-users
+    requestsCpu: "500m"
+    requestsMemory: "512Mi"
+    limitsCpu: "1000m"
+    limitsMemory: "1Gi"
+    pods: "10"
+
+  - namespace: backend-products
+    requestsCpu: "500m"
+    requestsMemory: "512Mi"
+    limitsCpu: "1000m"
+    limitsMemory: "1Gi"
+    pods: "10"
+
+  - namespace: backend-orders
+    requestsCpu: "500m"
+    requestsMemory: "512Mi"
+    limitsCpu: "1000m"
+    limitsMemory: "1Gi"
+    pods: "10"
+
+  - namespace: database
+    requestsCpu: "800m"
+    requestsMemory: "1Gi"
+    limitsCpu: "1500m"
+    limitsMemory: "2Gi"
+    pods: "10"
+
+  # Platform namespaces — protected from starvation
+  - namespace: monitoring
+    requestsCpu: "600m"
+    requestsMemory: "1Gi"
+    limitsCpu: "1500m"
+    limitsMemory: "2Gi"
+    pods: "20"
+
+  - namespace: logging
+    requestsCpu: "300m"
+    requestsMemory: "512Mi"
+    limitsCpu: "800m"
+    limitsMemory: "1Gi"
+    pods: "10"
+
+  - namespace: argocd
+    requestsCpu: "400m"
+    requestsMemory: "512Mi"
+    limitsCpu: "1000m"
+    limitsMemory: "1Gi"
+    pods: "20"
+
+limitRanges:
+  # Applied to all app namespaces
+  # Ensures pods that don't specify resources get sensible defaults
+  - namespace: frontend
+    defaultCpu: "100m"
+    defaultMemory: "128Mi"
+    defaultLimitCpu: "300m"
+    defaultLimitMemory: "256Mi"
+    maxCpu: "500m"
+    maxMemory: "512Mi"
+
+  - namespace: backend-users
+    defaultCpu: "100m"
+    defaultMemory: "128Mi"
+    defaultLimitCpu: "300m"
+    defaultLimitMemory: "256Mi"
+    maxCpu: "500m"
+    maxMemory: "512Mi"
+
+  - namespace: backend-products
+    defaultCpu: "100m"
+    defaultMemory: "128Mi"
+    defaultLimitCpu: "300m"
+    defaultLimitMemory: "256Mi"
+    maxCpu: "500m"
+    maxMemory: "512Mi"
+
+  - namespace: backend-orders
+    defaultCpu: "100m"
+    defaultMemory: "128Mi"
+    defaultLimitCpu: "300m"
+    defaultLimitMemory: "256Mi"
+    maxCpu: "500m"
+    maxMemory: "512Mi"

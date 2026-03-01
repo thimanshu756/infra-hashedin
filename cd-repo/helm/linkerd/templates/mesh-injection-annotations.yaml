@@ -1,0 +1,9 @@
+{{- range .Values.meshNamespaces }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ . }}
+  annotations:
+    linkerd.io/inject: enabled
+{{- end }}

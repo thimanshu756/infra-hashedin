@@ -1,0 +1,63 @@
+# =============================================================================
+# Percona PostgreSQL Cluster
+# =============================================================================
+# The Percona Operator automatically creates these Kubernetes Secrets:
+#   - percona-db-pguser-appuser   → keys: user, password, host, port, dbname, pgbouncer-host
+#   - percona-db-pguser-postgres  → superuser credentials
+#
+# Backend services get DB credentials from db-credentials SealedSecret
+# (created by scripts/create-sealed-secrets.sh in Phase 4 setup).
+# The SealedSecret copies appuser credentials to each backend namespace.
+# =============================================================================
+apiVersion: pgv2.percona.com/v2
+kind: PerconaPGCluster
+metadata:
+  name: {{ .Values.cluster.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  crVersion: "2.3.1"
+  image: percona/percona-postgresql-operator:2.3.1-ppg16-postgres
+
+  instances:
+    - name: primary
+      replicas: {{ .Values.cluster.instances }}
+      resources:
+        requests:
+          cpu: {{ .Values.cluster.resources.requests.cpu | quote }}
+          memory: {{ .Values.cluster.resources.requests.memory | quote }}
+        limits:
+          cpu: {{ .Values.cluster.resources.limits.cpu | quote }}
+          memory: {{ .Values.cluster.resources.limits.memory | quote }}
+      dataVolumeClaimSpec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.cluster.storageSize | quote }}
+        storageClassName: {{ .Values.cluster.storageClass | quote }}
+
+  users:
+    - name: appuser
+      databases:
+        - appdb
+      options: "SUPERUSER"
+    - name: postgres
+      options: "SUPERUSER"
+
+  proxy:
+    pgBouncer:
+      {{- if .Values.pgbouncer.enabled }}
+      replicas: {{ .Values.pgbouncer.replicas }}
+      resources:
+        requests:
+          cpu: {{ .Values.pgbouncer.resources.requests.cpu | quote }}
+          memory: {{ .Values.pgbouncer.resources.requests.memory | quote }}
+        limits:
+          cpu: {{ .Values.pgbouncer.resources.limits.cpu | quote }}
+          memory: {{ .Values.pgbouncer.resources.limits.memory | quote }}
+      {{- end }}
+
+  # Backup disabled — not needed for this assignment (saves resources)
+  backups:
+    pgbackrest:
+      repos: []

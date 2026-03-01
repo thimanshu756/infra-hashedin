@@ -1,0 +1,49 @@
+# =============================================================================
+# Tempo Configuration — Distributed Tracing Backend
+# =============================================================================
+# Tempo receives traces from OTEL Collector via OTLP gRPC (port 4317).
+# Grafana queries Tempo's HTTP API (port 3100) to display traces.
+# Single-binary mode — sufficient for a 2-node dev cluster.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-config
+  namespace: {{ .Values.namespace }}
+data:
+  tempo.yaml: |
+    server:
+      http_listen_port: 3100
+      grpc_listen_port: 9095
+
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+
+    ingester:
+      trace_idle_period: 10s
+      max_block_duration: 5m
+
+    compactor:
+      compaction:
+        compaction_window: 1h
+        block_retention: 24h
+
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /tmp/tempo/traces
+        wal:
+          path: /tmp/tempo/wal
+
+    querier:
+      frontend_worker:
+        frontend_address: localhost:9095
+
+    query_frontend: {}

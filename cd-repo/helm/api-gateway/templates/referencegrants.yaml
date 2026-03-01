@@ -1,0 +1,25 @@
+# =============================================================================
+# ReferenceGrants — Allow cross-namespace routing
+# =============================================================================
+# Gateway API requires explicit permission for HTTPRoutes in one namespace
+# to reference Services in another namespace.
+# Each ReferenceGrant lives in the TARGET namespace (where the Service is)
+# and grants access FROM the api-gateway namespace.
+# =============================================================================
+{{- $gatewayNS := .Values.namespace }}
+{{- range $name, $svc := .Values.services }}
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-from-gateway
+  namespace: {{ $svc.namespace }}
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: {{ $gatewayNS }}
+  to:
+    - group: ""
+      kind: Service
+{{- end }}

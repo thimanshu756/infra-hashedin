@@ -1,0 +1,19 @@
+# Products API route — /api/products → products-service in backend-products namespace
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: products-route
+  namespace: {{ .Values.namespace }}
+spec:
+  parentRefs:
+    - name: {{ .Values.gateway.name }}
+      namespace: {{ .Values.namespace }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/products
+      backendRefs:
+        - name: products-service
+          namespace: {{ .Values.services.products.namespace }}
+          port: {{ .Values.services.products.port }}

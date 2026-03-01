@@ -1,0 +1,23 @@
+namespace: api-gateway
+
+gateway:
+  name: kong-gateway
+  port: 80
+
+services:
+  frontend:
+    namespace: frontend
+    port: 80
+    path: "/"
+  users:
+    namespace: backend-users
+    port: 80
+    path: "/api/users"
+  products:
+    namespace: backend-products
+    port: 80
+    path: "/api/products"
+  orders:
+    namespace: backend-orders
+    port: 80
+    path: "/api/orders"

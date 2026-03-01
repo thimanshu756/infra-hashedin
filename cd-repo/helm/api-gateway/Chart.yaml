@@ -1,0 +1,7 @@
+apiVersion: v2
+name: api-gateway
+description: Kong Gateway API resources (HTTPRoutes, Gateway, ReferenceGrants)
+type: application
+version: 0.1.0
+# NOTE: Kong controller itself is installed via scripts/install-kong.sh
+# This chart only contains the Gateway API resource definitions.

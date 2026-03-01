@@ -1,0 +1,16 @@
+# =============================================================================
+# Kyverno — installed via Helm subchart dependency
+# =============================================================================
+# The kyverno subchart (declared in Chart.yaml) handles:
+#   - Admission Controller Deployment
+#   - Background Controller Deployment
+#   - Cleanup + Reports Controllers
+#   - CRDs (ClusterPolicy, Policy, etc.)
+#   - Webhook configurations
+#
+# Kyverno intercepts all K8s API requests and validates/mutates them
+# against the ClusterPolicies defined in this chart.
+#
+# Policies ONLY apply to app namespaces (frontend, backend-*)
+# to avoid blocking system components in kube-system, argocd, etc.
+# =============================================================================

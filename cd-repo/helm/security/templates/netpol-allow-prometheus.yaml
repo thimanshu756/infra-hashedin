@@ -1,0 +1,27 @@
+# =============================================================================
+# NetworkPolicy — Allow Prometheus to Scrape App Metrics
+# =============================================================================
+# Prometheus scrapes /metrics on each service (port 5000 for backends, 3000
+# for frontend). Without this, Prometheus targets show state=DOWN and no
+# Flask metrics appear in Grafana dashboards.
+# =============================================================================
+{{- range list "frontend" "backend-users" "backend-products" "backend-orders" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: {{ . }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 5000
+        - port: 3000
+{{- end }}

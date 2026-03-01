@@ -1,0 +1,148 @@
+# =============================================================================
+# Platform Applications — Phase 4 + Phase 5
+# =============================================================================
+# These components need different sync waves than the platform appset:
+#   - database: wave 0 (same as microservices — they start together)
+#   - api-gateway: wave 1 (after services exist, so routes have targets)
+#   - monitoring: wave 2 (after microservices are running and scrape-able)
+#   - logging: wave 2 (after microservices are running and producing logs)
+#
+# Separate from platform-appset.yaml because ApplicationSet templates
+# apply the same sync wave to all elements.
+# =============================================================================
+
+# Database — Percona PostgreSQL (sync wave 0)
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: database
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: eks-assignment
+
+  source:
+    # TODO: Replace YOUR_ORG/YOUR_CD_REPO with your actual CD repo
+    repoURL: https://github.com/YOUR_ORG/YOUR_CD_REPO
+    targetRevision: HU-DEVOPS-26-yourname
+    path: helm/database
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: database
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+
+# API Gateway — Kong HTTPRoutes and Gateway resources (sync wave 1)
+# Kong controller must be installed first via scripts/install-kong.sh
+# This chart only contains the Gateway API resource definitions
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: api-gateway
+  namespace: argocd
+  annotations:
+    # Wave 1 — after microservices (0) so route targets exist
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: eks-assignment
+
+  source:
+    # TODO: Replace YOUR_ORG/YOUR_CD_REPO with your actual CD repo
+    repoURL: https://github.com/YOUR_ORG/YOUR_CD_REPO
+    targetRevision: HU-DEVOPS-26-yourname
+    path: helm/api-gateway
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: api-gateway
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+
+# =============================================================================
+# Phase 5 — Observability Stack (sync wave 2)
+# =============================================================================
+
+# Monitoring — Prometheus + Grafana + Tempo + OTEL Collector
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: eks-assignment
+  source:
+    repoURL: https://github.com/YOUR_ORG/YOUR_CD_REPO
+    targetRevision: HU-DEVOPS-26-yourname
+    path: helm/monitoring
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+
+# Logging — Loki + Promtail
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: logging
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: eks-assignment
+  source:
+    repoURL: https://github.com/YOUR_ORG/YOUR_CD_REPO
+    targetRevision: HU-DEVOPS-26-yourname
+    path: helm/logging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: logging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2

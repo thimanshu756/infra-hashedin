@@ -1,0 +1,27 @@
+# =============================================================================
+# NetworkPolicy — Allow Egress to OTEL Collector
+# =============================================================================
+# Flask apps send traces to OTEL Collector in the monitoring namespace.
+# Without this, traces are silently dropped (app doesn't crash, just no traces).
+# Allows egress on ports 4317 (gRPC) and 4318 (HTTP) for OTLP protocol.
+# =============================================================================
+{{- range list "frontend" "backend-users" "backend-products" "backend-orders" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-to-otel-collector
+  namespace: {{ . }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 4317
+        - port: 4318
+{{- end }}

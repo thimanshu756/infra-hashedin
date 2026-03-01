@@ -1,0 +1,222 @@
+# =============================================================================
+# CI Pipeline — Build, Scan, Push to GCR, Update CD Repo
+# =============================================================================
+# Triggers on push to main branch when app code changes.
+# Builds all 4 services in parallel (matrix strategy ~4x faster).
+# Trivy scans BEFORE push — if critical vulns found, image never reaches GCR.
+# After all images pass, updates Helm values.yaml in CD repo with new tag.
+# =============================================================================
+
+name: "CI — Build & Push"
+
+on:
+  push:
+    branches:
+      - "Deloitte-US/HU-DevOps-26-yourname"
+    paths:
+      - "app/**"
+      - ".github/workflows/ci.yml"
+  # PR validation is handled by pr-check.yml separately
+
+permissions:
+  id-token: write    # Required for OIDC authentication to GCP
+  contents: write    # Required to push image tag updates to CD repo
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCR_REGISTRY: gcr.io
+  IMAGE_TAG: ${{ github.sha }}
+
+# =============================================================================
+# JOB 1: Build, Scan with Trivy, Push to GCR
+# =============================================================================
+# Uses matrix strategy to build all 4 services in parallel.
+# fail-fast: true — if one service fails Trivy, stop all others immediately.
+# =============================================================================
+jobs:
+  build-scan-push:
+    name: "Build & Scan — ${{ matrix.service }}"
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        service: [users-service, products-service, orders-service, frontend]
+      fail-fast: true
+
+    steps:
+      # ── 1. Checkout code ──
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Set short SHA for image tag ──
+      # 7 chars is enough for uniqueness and matches git log --oneline format
+      - name: Set short image tag
+        id: vars
+        run: echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      # ── 3. Authenticate to GCP via OIDC (NO JSON KEY) ──
+      # Uses Workload Identity Federation — no stored credentials
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+
+      # ── 4. Set up gcloud CLI ──
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      # ── 5. Configure Docker for GCR ──
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker gcr.io --quiet
+
+      # ── 6. Set up Docker Buildx ──
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── 7. Cache Docker layers ──
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache-${{ matrix.service }}
+          key: ${{ runner.os }}-buildx-${{ matrix.service }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-${{ matrix.service }}-
+
+      # ── 8. Build Docker image ──
+      # push: false — build only, Trivy must scan BEFORE image reaches registry
+      # load: true — load into local Docker daemon so Trivy can scan it
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/${{ matrix.service }}
+          push: false
+          load: true
+          tags: |
+            gcr.io/${{ env.GCP_PROJECT_ID }}/${{ matrix.service }}:${{ steps.vars.outputs.SHORT_SHA }}
+            gcr.io/${{ env.GCP_PROJECT_ID }}/${{ matrix.service }}:latest
+          cache-from: type=local,src=/tmp/.buildx-cache-${{ matrix.service }}
+          cache-to: type=local,dest=/tmp/.buildx-cache-${{ matrix.service }}-new,mode=max
+
+      # ── 9. Trivy vulnerability scan ──
+      # exit-code: 1 — FAIL pipeline on CRITICAL vulnerabilities
+      # ignore-unfixed: true — unfixable vulns create noise without actionable items
+      # severity: CRITICAL — only fail on critical (HIGH would be too noisy for CI)
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: gcr.io/${{ env.GCP_PROJECT_ID }}/${{ matrix.service }}:${{ steps.vars.outputs.SHORT_SHA }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL
+          output: trivy-results-${{ matrix.service }}.txt
+
+      # ── 10. Upload Trivy results as artifact ──
+      # always() — upload even if scan fails (audit trail)
+      - name: Upload Trivy results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-results-${{ matrix.service }}
+          path: trivy-results-${{ matrix.service }}.txt
+          retention-days: 30
+
+      # ── 11. Push image to GCR (only runs if Trivy passed) ──
+      - name: Push image to GCR
+        run: |
+          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/${{ matrix.service }}:${{ steps.vars.outputs.SHORT_SHA }}
+          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/${{ matrix.service }}:latest
+
+      # ── 12. Move Docker cache ──
+      # Prevents cache from growing indefinitely
+      - name: Move Docker cache
+        run: |
+          rm -rf /tmp/.buildx-cache-${{ matrix.service }}
+          mv /tmp/.buildx-cache-${{ matrix.service }}-new \
+             /tmp/.buildx-cache-${{ matrix.service }}
+
+  # ===========================================================================
+  # JOB 2: Update CD Repo with new image tags
+  # ===========================================================================
+  # Only runs after ALL matrix jobs pass.
+  # Updates Helm values.yaml in the CD repo so ArgoCD picks up new images.
+  # Commit message includes [skip ci] to prevent infinite trigger loops.
+  # ===========================================================================
+  update-cd-repo:
+    name: "Update CD Repo"
+    needs: build-scan-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set short SHA
+        id: vars
+        run: echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      # Checkout the CD repo (separate repo where Helm charts live)
+      - name: Checkout CD repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.CD_REPO }}
+          ref: HU-DEVOPS-26-yourname
+          token: ${{ secrets.CD_REPO_PAT }}
+          path: cd-repo
+
+      # Update image tags in all Helm values.yaml files
+      - name: Update image tags
+        run: |
+          cd cd-repo
+          SHORT_SHA=${{ steps.vars.outputs.SHORT_SHA }}
+
+          for service in users-service products-service orders-service frontend; do
+            FILE="helm/${service}/values.yaml"
+            if [ -f "$FILE" ]; then
+              sed -i "s|tag:.*|tag: \"${SHORT_SHA}\"|g" "$FILE"
+              echo "Updated ${FILE} to tag: ${SHORT_SHA}"
+            else
+              echo "WARNING: ${FILE} not found — skipping"
+            fi
+          done
+
+      # Commit and push — [skip ci] prevents infinite loop
+      - name: Commit and push tag update
+        run: |
+          cd cd-repo
+          git config user.email "ci-bot@github-actions.com"
+          git config user.name "GitHub Actions CI"
+
+          git add helm/*/values.yaml
+
+          # Only commit if there are actual changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "ci: update image tags to ${{ steps.vars.outputs.SHORT_SHA }} [skip ci]"
+            git push origin HU-DEVOPS-26-yourname
+            echo "CD repo updated successfully"
+          fi
+
+  # ===========================================================================
+  # JOB 3: Pipeline Summary
+  # ===========================================================================
+  notify:
+    name: "Pipeline Summary"
+    needs: [build-scan-push, update-cd-repo]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Print pipeline summary
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          echo "## CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Image Tag | Registry |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-----------|----------|" >> $GITHUB_STEP_SUMMARY
+          for service in users-service products-service orders-service frontend; do
+            echo "| ${service} | \`${SHORT_SHA}\` | gcr.io/${{ env.GCP_PROJECT_ID }}/${service} |" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Build:** ${{ needs.build-scan-push.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "**CD Repo:** ${{ needs.update-cd-repo.result }}" >> $GITHUB_STEP_SUMMARY

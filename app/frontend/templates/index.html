@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EKS Assignment Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <h1>EKS Assignment Dashboard</h1>
+
+  <div id="message" class="message"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('users')">Users</button>
+    <button class="tab-btn" onclick="switchTab('products')">Products</button>
+    <button class="tab-btn" onclick="switchTab('orders')">Orders</button>
+  </div>
+
+  <!-- ===================== USERS TAB ===================== -->
+  <div id="users" class="tab-content active">
+    <div class="form-row">
+      <input type="text" id="user-name" placeholder="Name">
+      <input type="email" id="user-email" placeholder="Email">
+      <input type="text" id="user-role" placeholder="Role (default: user)">
+      <input type="hidden" id="user-edit-id">
+      <button class="btn btn-primary" onclick="saveUser()">Add User</button>
+      <button class="btn btn-cancel" id="user-cancel" style="display:none" onclick="cancelEditUser()">Cancel</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Created</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="users-table"></tbody>
+    </table>
+  </div>
+
+  <!-- ===================== PRODUCTS TAB ===================== -->
+  <div id="products" class="tab-content">
+    <div class="form-row">
+      <input type="text" id="product-name" placeholder="Name">
+      <input type="number" id="product-price" placeholder="Price" step="0.01">
+      <input type="text" id="product-category" placeholder="Category">
+      <input type="hidden" id="product-edit-id">
+      <button class="btn btn-primary" onclick="saveProduct()">Add Product</button>
+      <button class="btn btn-cancel" id="product-cancel" style="display:none" onclick="cancelEditProduct()">Cancel</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Name</th><th>Price</th><th>Category</th><th>Created</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="products-table"></tbody>
+    </table>
+  </div>
+
+  <!-- ===================== ORDERS TAB ===================== -->
+  <div id="orders" class="tab-content">
+    <div class="form-row">
+      <input type="number" id="order-user-id" placeholder="User ID">
+      <input type="number" id="order-product-id" placeholder="Product ID">
+      <input type="number" id="order-quantity" placeholder="Quantity" value="1">
+      <select id="order-status" style="display:none">
+        <option value="pending">Pending</option>
+        <option value="completed">Completed</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+      <input type="hidden" id="order-edit-id">
+      <button class="btn btn-primary" onclick="saveOrder()">Add Order</button>
+      <button class="btn btn-cancel" id="order-cancel" style="display:none" onclick="cancelEditOrder()">Cancel</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>User ID</th><th>Product ID</th><th>Quantity</th><th>Status</th><th>Created</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="orders-table"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const GATEWAY_URL = "{{ gateway_url }}";
+    const USERS_URL = "{{ users_url }}" || GATEWAY_URL;
+    const PRODUCTS_URL = "{{ products_url }}" || GATEWAY_URL;
+    const ORDERS_URL = "{{ orders_url }}" || GATEWAY_URL;
+
+    // ==================== Tab Switching ====================
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(tab).classList.add('active');
+      event.target.classList.add('active');
+      loadData(tab);
+    }
+
+    // ==================== Messages ====================
+    function showMessage(text, type) {
+      const msg = document.getElementById('message');
+      msg.textContent = text;
+      msg.className = 'message message-' + type;
+      msg.style.display = 'block';
+      setTimeout(() => { msg.style.display = 'none'; }, 3000);
+    }
+
+    function formatDate(d) {
+      if (!d) return '';
+      return new Date(d).toLocaleDateString();
+    }
+
+    // ==================== API Helper ====================
+    async function api(baseUrl, path, method, body) {
+      const opts = { method, headers: { 'Content-Type': 'application/json' } };
+      if (body) opts.body = JSON.stringify(body);
+      const res = await fetch(baseUrl + path, opts);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    // ==================== USERS ====================
+    async function loadUsers() {
+      try {
+        const users = await api(USERS_URL, '/users', 'GET');
+        const tbody = document.getElementById('users-table');
+        tbody.innerHTML = users.map(u => `
+          <tr>
+            <td>${u.id}</td><td>${u.name}</td><td>${u.email}</td>
+            <td>${u.role}</td><td>${formatDate(u.created_at)}</td>
+            <td class="actions">
+              <button class="btn btn-edit" onclick='editUser(${JSON.stringify(u)})'>Edit</button>
+              <button class="btn btn-delete" onclick="deleteUser(${u.id})">Delete</button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (e) { showMessage('Failed to load users: ' + e.message, 'error'); }
+    }
+
+    async function saveUser() {
+      const editId = document.getElementById('user-edit-id').value;
+      const data = {
+        name: document.getElementById('user-name').value,
+        email: document.getElementById('user-email').value,
+        role: document.getElementById('user-role').value || 'user'
+      };
+      if (!data.name || !data.email) return showMessage('Name and email required', 'error');
+      try {
+        if (editId) {
+          await api(USERS_URL, '/users/' + editId, 'PUT', data);
+          showMessage('User updated', 'success');
+        } else {
+          await api(USERS_URL, '/users', 'POST', data);
+          showMessage('User created', 'success');
+        }
+        cancelEditUser();
+        loadUsers();
+      } catch (e) { showMessage(e.message, 'error'); }
+    }
+
+    function editUser(u) {
+      document.getElementById('user-name').value = u.name;
+      document.getElementById('user-email').value = u.email;
+      document.getElementById('user-role').value = u.role;
+      document.getElementById('user-edit-id').value = u.id;
+      document.getElementById('user-cancel').style.display = 'inline-block';
+      document.querySelector('#users .btn-primary').textContent = 'Update User';
+    }
+
+    function cancelEditUser() {
+      document.getElementById('user-name').value = '';
+      document.getElementById('user-email').value = '';
+      document.getElementById('user-role').value = '';
+      document.getElementById('user-edit-id').value = '';
+      document.getElementById('user-cancel').style.display = 'none';
+      document.querySelector('#users .btn-primary').textContent = 'Add User';
+    }
+
+    async function deleteUser(id) {
+      if (!confirm('Delete this user?')) return;
+      try {
+        await api(USERS_URL, '/users/' + id, 'DELETE');
+        showMessage('User deleted', 'success');
+        loadUsers();
+      } catch (e) { showMessage(e.message, 'error'); }
+    }
+
+    // ==================== PRODUCTS ====================
+    async function loadProducts() {
+      try {
+        const products = await api(PRODUCTS_URL, '/products', 'GET');
+        const tbody = document.getElementById('products-table');
+        tbody.innerHTML = products.map(p => `
+          <tr>
+            <td>${p.id}</td><td>${p.name}</td><td>$${Number(p.price).toFixed(2)}</td>
+            <td>${p.category || ''}</td><td>${formatDate(p.created_at)}</td>
+            <td class="actions">
+              <button class="btn btn-edit" onclick='editProduct(${JSON.stringify(p)})'>Edit</button>
+              <button class="btn btn-delete" onclick="deleteProduct(${p.id})">Delete</button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (e) { showMessage('Failed to load products: ' + e.message, 'error'); }
+    }
+
+    async function saveProduct() {
+      const editId = document.getElementById('product-edit-id').value;
+      const data = {
+        name: document.getElementById('product-name').value,
+        price: parseFloat(document.getElementById('product-price').value),
+        category: document.getElementById('product-category').value
+      };
+      if (!data.name || isNaN(data.price)) return showMessage('Name and price required', 'error');
+      try {
+        if (editId) {
+          await api(PRODUCTS_URL, '/products/' + editId, 'PUT', data);
+          showMessage('Product updated', 'success');
+        } else {
+          await api(PRODUCTS_URL, '/products', 'POST', data);
+          showMessage('Product created', 'success');
+        }
+        cancelEditProduct();
+        loadProducts();
+      } catch (e) { showMessage(e.message, 'error'); }
+    }
+
+    function editProduct(p) {
+      document.getElementById('product-name').value = p.name;
+      document.getElementById('product-price').value = p.price;
+      document.getElementById('product-category').value = p.category || '';
+      document.getElementById('product-edit-id').value = p.id;
+      document.getElementById('product-cancel').style.display = 'inline-block';
+      document.querySelector('#products .btn-primary').textContent = 'Update Product';
+    }
+
+    function cancelEditProduct() {
+      document.getElementById('product-name').value = '';
+      document.getElementById('product-price').value = '';
+      document.getElementById('product-category').value = '';
+      document.getElementById('product-edit-id').value = '';
+      document.getElementById('product-cancel').style.display = 'none';
+      document.querySelector('#products .btn-primary').textContent = 'Add Product';
+    }
+
+    async function deleteProduct(id) {
+      if (!confirm('Delete this product?')) return;
+      try {
+        await api(PRODUCTS_URL, '/products/' + id, 'DELETE');
+        showMessage('Product deleted', 'success');
+        loadProducts();
+      } catch (e) { showMessage(e.message, 'error'); }
+    }
+
+    // ==================== ORDERS ====================
+    async function loadOrders() {
+      try {
+        const orders = await api(ORDERS_URL, '/orders', 'GET');
+        const tbody = document.getElementById('orders-table');
+        tbody.innerHTML = orders.map(o => `
+          <tr>
+            <td>${o.id}</td><td>${o.user_id}</td><td>${o.product_id}</td>
+            <td>${o.quantity}</td>
+            <td><span class="status status-${o.status}">${o.status}</span></td>
+            <td>${formatDate(o.created_at)}</td>
+            <td class="actions">
+              <button class="btn btn-edit" onclick='editOrder(${JSON.stringify(o)})'>Edit</button>
+              <button class="btn btn-delete" onclick="deleteOrder(${o.id})">Delete</button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (e) { showMessage('Failed to load orders: ' + e.message, 'error'); }
+    }
+
+    async function saveOrder() {
+      const editId = document.getElementById('order-edit-id').value;
+      try {
+        if (editId) {
+          const data = {
+            quantity: parseInt(document.getElementById('order-quantity').value),
+            status: document.getElementById('order-status').value
+          };
+          await api(ORDERS_URL, '/orders/' + editId, 'PUT', data);
+          showMessage('Order updated', 'success');
+        } else {
+          const data = {
+            user_id: parseInt(document.getElementById('order-user-id').value),
+            product_id: parseInt(document.getElementById('order-product-id').value),
+            quantity: parseInt(document.getElementById('order-quantity').value) || 1
+          };
+          if (!data.user_id || !data.product_id) return showMessage('User ID and Product ID required', 'error');
+          await api(ORDERS_URL, '/orders', 'POST', data);
+          showMessage('Order created', 'success');
+        }
+        cancelEditOrder();
+        loadOrders();
+      } catch (e) { showMessage(e.message, 'error'); }
+    }
+
+    function editOrder(o) {
+      document.getElementById('order-user-id').value = o.user_id;
+      document.getElementById('order-product-id').value = o.product_id;
+      document.getElementById('order-quantity').value = o.quantity;
+      document.getElementById('order-status').value = o.status;
+      document.getElementById('order-edit-id').value = o.id;
+      document.getElementById('order-user-id').disabled = true;
+      document.getElementById('order-product-id').disabled = true;
+      document.getElementById('order-status').style.display = 'inline-block';
+      document.getElementById('order-cancel').style.display = 'inline-block';
+      document.querySelector('#orders .btn-primary').textContent = 'Update Order';
+    }
+
+    function cancelEditOrder() {
+      document.getElementById('order-user-id').value = '';
+      document.getElementById('order-product-id').value = '';
+      document.getElementById('order-quantity').value = '1';
+      document.getElementById('order-edit-id').value = '';
+      document.getElementById('order-user-id').disabled = false;
+      document.getElementById('order-product-id').disabled = false;
+      document.getElementById('order-status').style.display = 'none';
+      document.getElementById('order-cancel').style.display = 'none';
+      document.querySelector('#orders .btn-primary').textContent = 'Add Order';
+    }
+
+    async function deleteOrder(id) {
+      if (!confirm('Delete this order?')) return;
+      try {
+        await api(ORDERS_URL, '/orders/' + id, 'DELETE');
+        showMessage('Order deleted', 'success');
+        loadOrders();
+      } catch (e) { showMessage(e.message, 'error'); }
+    }
+
+    // ==================== Data Loading ====================
+    function loadData(tab) {
+      if (tab === 'users') loadUsers();
+      else if (tab === 'products') loadProducts();
+      else if (tab === 'orders') loadOrders();
+    }
+
+    // Load users on page load
+    loadUsers();
+  </script>
+</body>
+</html>

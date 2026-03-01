@@ -1,0 +1,156 @@
+# =============================================================================
+# GitHub Actions — Terraform CI/CD Pipeline
+# =============================================================================
+# - push to IAC-DAY1    → plan + apply
+# - PR to IAC-DAY1      → plan only + comment on PR
+# - Uses OIDC for AWS authentication (no stored AWS keys)
+# =============================================================================
+# NOTE: The EKS cluster endpoint is private-only (endpoint_public_access=false).
+# This means terraform apply cannot directly manage Kubernetes resources
+# (like aws-auth ConfigMap) from a GitHub-hosted runner. Options:
+#   1. Use a self-hosted runner on the bastion (preferred for production)
+#   2. Temporarily set endpoint_public_access=true with CIDR restriction
+#   3. Run kubectl commands via SSM on the bastion as a post-apply step
+# =============================================================================
+
+name: "Terraform"
+
+on:
+  push:
+    branches:
+      - IAC-DAY1
+    paths:
+      - "terraform/**"
+  pull_request:
+    branches:
+      - IAC-DAY1
+    paths:
+      - "terraform/**"
+
+permissions:
+  id-token: write   # Required for OIDC
+  contents: read     # Required for checkout
+  pull-requests: write # Required for PR comments
+
+env:
+  TF_WORKING_DIR: terraform/environments/dev
+  AWS_REGION: eu-west-1
+
+jobs:
+  terraform:
+    name: "Terraform Plan & Apply"
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+    steps:
+      # --------------------------------------------------
+      # 1. Checkout code
+      # --------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------
+      # 2. Configure AWS credentials via OIDC
+      # --------------------------------------------------
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # --------------------------------------------------
+      # 3. Setup Terraform
+      # --------------------------------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      # --------------------------------------------------
+      # 4. Terraform Init
+      # --------------------------------------------------
+      - name: Terraform Init
+        id: init
+        run: terraform init
+
+      # --------------------------------------------------
+      # 5. Terraform Format Check
+      # --------------------------------------------------
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      # --------------------------------------------------
+      # 6. Terraform Validate
+      # --------------------------------------------------
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      # --------------------------------------------------
+      # 7. Terraform Plan
+      # --------------------------------------------------
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color -out=tfplan
+        env:
+          TF_VAR_github_org: ${{ secrets.TF_VAR_github_org }}
+          TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
+          TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+          TF_VAR_aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          TF_VAR_owner: ${{ secrets.TF_VAR_owner }}
+        continue-on-error: true
+
+      # --------------------------------------------------
+      # 8. Post Plan to PR Comment
+      # --------------------------------------------------
+      - name: Post Plan to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`terraform
+            ${{ steps.plan.outputs.stdout }}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      # --------------------------------------------------
+      # 9. Terraform Plan Status Check
+      # --------------------------------------------------
+      - name: Terraform Plan Status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+      # --------------------------------------------------
+      # 10. Terraform Apply (only on push to IAC-DAY1)
+      # --------------------------------------------------
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/IAC-DAY1' && github.event_name == 'push'
+        run: terraform apply -auto-approve tfplan
+        env:
+          TF_VAR_github_org: ${{ secrets.TF_VAR_github_org }}
+          TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
+          TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+          TF_VAR_aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          TF_VAR_owner: ${{ secrets.TF_VAR_owner }}

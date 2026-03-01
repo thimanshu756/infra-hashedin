@@ -1,0 +1,16 @@
+namespace: sealed-secrets
+
+sealed-secrets:
+  namespace: sealed-secrets
+  fullnameOverride: sealed-secrets-controller
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+  # Key renewal period — 30 days
+  # If you destroy and recreate the cluster, you must recreate sealed secrets
+  # because the encryption key changes
+  keyrenewperiod: "720h"

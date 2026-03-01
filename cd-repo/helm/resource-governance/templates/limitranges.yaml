@@ -1,0 +1,24 @@
+{{- range .Values.limitRanges }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: namespace-limits
+  namespace: {{ .namespace }}
+  annotations:
+    description: >
+      Default resource requests/limits for {{ .namespace }}.
+      Applied to any pod that doesn't specify resources.
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: {{ .defaultLimitCpu | quote }}
+        memory: {{ .defaultLimitMemory | quote }}
+      defaultRequest:
+        cpu: {{ .defaultCpu | quote }}
+        memory: {{ .defaultMemory | quote }}
+      max:
+        cpu: {{ .maxCpu | quote }}
+        memory: {{ .maxMemory | quote }}
+{{- end }}

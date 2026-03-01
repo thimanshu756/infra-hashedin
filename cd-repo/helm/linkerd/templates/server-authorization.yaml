@@ -1,0 +1,31 @@
+{{- range .Values.policies }}
+---
+# Server: defines which port/protocol to protect
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: {{ .name }}-server
+  namespace: {{ .namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .targetApp }}
+  port: {{ .targetPort }}
+  proxyProtocol: HTTP/1
+
+---
+# ServerAuthorization: defines WHO is allowed to call this Server
+apiVersion: policy.linkerd.io/v1beta3
+kind: ServerAuthorization
+metadata:
+  name: {{ .name }}-allow
+  namespace: {{ .namespace }}
+spec:
+  server:
+    name: {{ .name }}-server
+  client:
+    meshTLS:
+      serviceAccounts:
+        - name: default
+          namespace: {{ .allowedNamespace }}
+{{- end }}

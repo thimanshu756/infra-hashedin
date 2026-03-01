@@ -1,0 +1,5 @@
+apiVersion: v2
+name: linkerd-config
+description: Linkerd ServerAuthorization policies for zero-trust
+type: application
+version: 0.1.0

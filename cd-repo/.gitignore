@@ -1,0 +1,19 @@
+# Helm
+helm/*/charts/
+helm/*/*.tgz
+
+# Secrets — never commit
+*.pem
+*.key
+*-sealed.yaml.bak
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

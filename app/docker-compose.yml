@@ -1,0 +1,68 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: appdb
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: localpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  users-service:
+    build: ./users-service
+    ports:
+      - "5001:5000"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: appdb
+      DB_USER: appuser
+      DB_PASSWORD: localpassword
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
+    depends_on:
+      - postgres
+
+  products-service:
+    build: ./products-service
+    ports:
+      - "5002:5000"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: appdb
+      DB_USER: appuser
+      DB_PASSWORD: localpassword
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
+    depends_on:
+      - postgres
+
+  orders-service:
+    build: ./orders-service
+    ports:
+      - "5003:5000"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: appdb
+      DB_USER: appuser
+      DB_PASSWORD: localpassword
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
+    depends_on:
+      - postgres
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      GATEWAY_URL: "http://localhost:5001"
+      USERS_URL: "http://localhost:5001"
+      PRODUCTS_URL: "http://localhost:5002"
+      ORDERS_URL: "http://localhost:5003"
+    depends_on:
+      - users-service
+      - products-service
+      - orders-service
+
+volumes:
+  pgdata:

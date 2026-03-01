@@ -1,0 +1,41 @@
+# =============================================================================
+# Kyverno Policy — Disallow Latest Tag
+# =============================================================================
+# Discourages use of the :latest image tag.
+# Mode: Audit — logs violations but does NOT block deployments.
+# Set to Audit because CI uses :latest as a convenience tag alongside
+# the SHA tag. Change to Enforce after confirming SHA tags are
+# consistently used in production.
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-latest-tag
+  annotations:
+    policies.kyverno.io/title: Disallow Latest Tag
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: low
+    policies.kyverno.io/description: >-
+      Image tag 'latest' is discouraged. Use a specific version tag.
+      Currently in Audit mode — violations are logged but not blocked.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: check-image-tag
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - frontend
+                - backend-users
+                - backend-products
+                - backend-orders
+      validate:
+        message: "Image tag 'latest' is discouraged. Use a specific version tag."
+        pattern:
+          spec:
+            containers:
+              - image: "!*:latest"

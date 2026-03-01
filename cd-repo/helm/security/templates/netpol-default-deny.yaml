@@ -1,0 +1,22 @@
+# =============================================================================
+# NetworkPolicy — Default Deny All
+# =============================================================================
+# Default deny ALL ingress and egress for every app namespace.
+# Explicit allow rules in other netpol files open only required flows.
+# This is the zero-trust baseline — nothing is allowed unless explicitly granted.
+# =============================================================================
+{{- range .Values.appNamespaces }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: {{ . }}
+  annotations:
+    description: "Deny all traffic by default. Explicit allow rules override this."
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+{{- end }}
