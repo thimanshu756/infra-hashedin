@@ -1,9 +1,9 @@
 # =============================================================================
-# CI Pipeline — Build, Scan, Push to GCR, Update CD Repo
+# CI Pipeline — Build, Scan, Push to ECR, Update CD Repo
 # =============================================================================
-# Triggers on push to main branch when app code changes.
+# Triggers on push to app branch when app code changes.
 # Builds all 4 services in parallel (matrix strategy ~4x faster).
-# Trivy scans BEFORE push — if critical vulns found, image never reaches GCR.
+# Trivy scans BEFORE push — if critical vulns found, image never reaches ECR.
 # After all images pass, updates Helm values.yaml in CD repo with new tag.
 # =============================================================================
 
@@ -12,23 +12,22 @@ name: "CI — Build & Push"
 on:
   push:
     branches:
-      - "Deloitte-US/HU-DevOps-26-yourname"
+      - "HU-DevOps-26-highai"
     paths:
       - "app/**"
       - ".github/workflows/ci.yml"
   # PR validation is handled by pr-check.yml separately
 
 permissions:
-  id-token: write    # Required for OIDC authentication to GCP
+  id-token: write    # Required for OIDC authentication to AWS
   contents: write    # Required to push image tag updates to CD repo
 
 env:
-  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GCR_REGISTRY: gcr.io
+  AWS_REGION: us-west-1
   IMAGE_TAG: ${{ github.sha }}
 
 # =============================================================================
-# JOB 1: Build, Scan with Trivy, Push to GCR
+# JOB 1: Build, Scan with Trivy, Push to ECR
 # =============================================================================
 # Uses matrix strategy to build all 4 services in parallel.
 # fail-fast: true — if one service fails Trivy, stop all others immediately.
@@ -54,21 +53,22 @@ jobs:
         id: vars
         run: echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
 
-      # ── 3. Authenticate to GCP via OIDC (NO JSON KEY) ──
-      # Uses Workload Identity Federation — no stored credentials
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
+      # ── 3. Authenticate to AWS via OIDC (NO stored credentials) ──
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      # ── 4. Set up gcloud CLI ──
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v2
+      # ── 4. Login to Amazon ECR ──
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
 
-      # ── 5. Configure Docker for GCR ──
-      - name: Configure Docker for GCR
-        run: gcloud auth configure-docker gcr.io --quiet
+      # ── 5. Set ECR registry URL ──
+      - name: Set ECR registry
+        id: ecr
+        run: echo "REGISTRY=${{ steps.ecr-login.outputs.registry }}" >> $GITHUB_OUTPUT
 
       # ── 6. Set up Docker Buildx ──
       - name: Set up Docker Buildx
@@ -93,8 +93,8 @@ jobs:
           push: false
           load: true
           tags: |
-            gcr.io/${{ env.GCP_PROJECT_ID }}/${{ matrix.service }}:${{ steps.vars.outputs.SHORT_SHA }}
-            gcr.io/${{ env.GCP_PROJECT_ID }}/${{ matrix.service }}:latest
+            ${{ steps.ecr.outputs.REGISTRY }}/${{ matrix.service }}:${{ steps.vars.outputs.SHORT_SHA }}
+            ${{ steps.ecr.outputs.REGISTRY }}/${{ matrix.service }}:latest
           cache-from: type=local,src=/tmp/.buildx-cache-${{ matrix.service }}
           cache-to: type=local,dest=/tmp/.buildx-cache-${{ matrix.service }}-new,mode=max
 
@@ -105,7 +105,7 @@ jobs:
       - name: Run Trivy vulnerability scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: gcr.io/${{ env.GCP_PROJECT_ID }}/${{ matrix.service }}:${{ steps.vars.outputs.SHORT_SHA }}
+          image-ref: ${{ steps.ecr.outputs.REGISTRY }}/${{ matrix.service }}:${{ steps.vars.outputs.SHORT_SHA }}
           format: table
           exit-code: '1'
           ignore-unfixed: true
@@ -123,11 +123,11 @@ jobs:
           path: trivy-results-${{ matrix.service }}.txt
           retention-days: 30
 
-      # ── 11. Push image to GCR (only runs if Trivy passed) ──
-      - name: Push image to GCR
+      # ── 11. Push image to ECR (only runs if Trivy passed) ──
+      - name: Push image to ECR
         run: |
-          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/${{ matrix.service }}:${{ steps.vars.outputs.SHORT_SHA }}
-          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/${{ matrix.service }}:latest
+          docker push ${{ steps.ecr.outputs.REGISTRY }}/${{ matrix.service }}:${{ steps.vars.outputs.SHORT_SHA }}
+          docker push ${{ steps.ecr.outputs.REGISTRY }}/${{ matrix.service }}:latest
 
       # ── 12. Move Docker cache ──
       # Prevents cache from growing indefinitely
@@ -159,7 +159,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ secrets.CD_REPO }}
-          ref: HU-DEVOPS-26-yourname
+          ref: main
           token: ${{ secrets.CD_REPO_PAT }}
           path: cd-repo
 
@@ -193,7 +193,7 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "ci: update image tags to ${{ steps.vars.outputs.SHORT_SHA }} [skip ci]"
-            git push origin HU-DEVOPS-26-yourname
+            git push origin main
             echo "CD repo updated successfully"
           fi
 
@@ -207,15 +207,23 @@ jobs:
     if: always()
 
     steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Print pipeline summary
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          REGISTRY="${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
           echo "## CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Service | Image Tag | Registry |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|-----------|----------|" >> $GITHUB_STEP_SUMMARY
           for service in users-service products-service orders-service frontend; do
-            echo "| ${service} | \`${SHORT_SHA}\` | gcr.io/${{ env.GCP_PROJECT_ID }}/${service} |" >> $GITHUB_STEP_SUMMARY
+            echo "| ${service} | \`${SHORT_SHA}\` | ${REGISTRY}/${service} |" >> $GITHUB_STEP_SUMMARY
           done
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Build:** ${{ needs.build-scan-push.result }}" >> $GITHUB_STEP_SUMMARY

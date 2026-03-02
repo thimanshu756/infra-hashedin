@@ -20,3 +20,122 @@ spec:
     - Ingress
     - Egress
 {{- end }}
+
+# =============================================================================
+# Default Deny for platform namespaces
+# =============================================================================
+# These namespaces also need a zero-trust baseline. Platform components
+# (database, monitoring, logging, api-gateway) have their own allow rules
+# defined in other netpol files. Without this, these namespaces are wide open.
+# =============================================================================
+{{- range list "database" "monitoring" "logging" "api-gateway" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: {{ . }}
+  annotations:
+    description: "Deny all traffic by default for platform namespace."
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+{{- end }}
+
+# =============================================================================
+# Allow DNS for platform namespaces
+# =============================================================================
+{{- range list "database" "monitoring" "logging" "api-gateway" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: {{ . }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+{{- end }}
+
+# =============================================================================
+# Allow platform-specific required traffic
+# =============================================================================
+# Monitoring: needs to scrape all namespaces + receive OTLP traces
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-monitoring-traffic
+  namespace: monitoring
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - port: 4317
+          protocol: TCP
+        - port: 4318
+          protocol: TCP
+        - port: 9090
+          protocol: TCP
+        - port: 3000
+          protocol: TCP
+        - port: 3100
+          protocol: TCP
+  egress:
+    - {}
+
+# Logging: Loki receives logs from Promtail, Promtail needs to reach all pods
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-logging-traffic
+  namespace: logging
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - port: 3100
+          protocol: TCP
+  egress:
+    - {}
+
+# API Gateway: Kong needs to reach all backend services and receive external traffic
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-traffic
+  namespace: api-gateway
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - port: 80
+          protocol: TCP
+        - port: 443
+          protocol: TCP
+        - port: 8000
+          protocol: TCP
+        - port: 8443
+          protocol: TCP
+  egress:
+    - {}

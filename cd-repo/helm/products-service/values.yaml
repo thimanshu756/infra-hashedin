@@ -1,13 +1,12 @@
 replicaCount: 2
 
 image:
-  # TODO: Replace YOUR_GCP_PROJECT_ID with your GCP project ID
-  repository: gcr.io/YOUR_GCP_PROJECT_ID/products-service
+  # TODO: Replace YOUR_AWS_ACCOUNT_ID with your 12-digit AWS account ID
+  repository: YOUR_AWS_ACCOUNT_ID.dkr.ecr.us-west-1.amazonaws.com/products-service
   tag: "latest"        # CI pipeline overwrites this with SHORT_SHA on every push
   pullPolicy: Always
 
-imagePullSecrets:
-  - name: gcr-pull-secret
+imagePullSecrets: []
 
 nameOverride: ""
 

@@ -6,17 +6,17 @@
 # =============================================================================
 
 # --- AWS ---
-aws_region     = "eu-west-1"
-aws_account_id = ""            # Your AWS account ID
+aws_region     = "us-west-1"
+aws_account_id = "YOUR_AWS_ACCOUNT_ID"    # Replace with your 12-digit AWS account ID
 project_name   = "eks-assignment"
 environment    = "dev"
-owner          = "your-name"
+owner          = "highai"
 
 # --- VPC ---
 vpc_cidr             = "10.0.0.0/16"
 public_subnet_cidr   = "10.0.1.0/24"
 private_subnet_cidrs = ["10.0.2.0/24", "10.0.3.0/24"]
-availability_zones   = ["eu-west-1a", "eu-west-1b"]
+availability_zones   = ["us-west-1a", "us-west-1b"]
 
 # --- EKS ---
 cluster_name       = "eks-assignment-cluster"
@@ -27,10 +27,6 @@ node_min_count     = 2
 node_max_count     = 3
 
 # --- GitHub OIDC ---
-github_org    = ""             # Your GitHub org or username
-github_repo   = ""             # Your GitHub repo name
+github_org    = "Deloitte-DT-Training"
+github_repo   = "HU-DevOps-26-highai"
 github_branch = "IAC-DAY1"
-
-# --- GCP ---
-gcp_project_id = ""            # Your GCP project ID
-gcp_region     = "us-central1"

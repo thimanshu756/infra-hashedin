@@ -3,7 +3,6 @@ import time
 import json
 import logging
 from datetime import datetime
-from decimal import Decimal
 
 import psycopg2
 import psycopg2.extras
@@ -17,15 +16,19 @@ from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry import trace
+
+SERVICE_NAME = "products-service"
 
 
 def setup_otel(app):
     endpoint = os.environ.get('OTEL_EXPORTER_OTLP_ENDPOINT', '')
     if not endpoint:
         return
-    provider = TracerProvider()
+    resource = Resource.create({"service.name": SERVICE_NAME})
+    provider = TracerProvider(resource=resource)
     provider.add_span_processor(
         BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
     )
@@ -50,12 +53,18 @@ setup_otel(app)
 # =============================================================================
 class JSONFormatter(logging.Formatter):
     def format(self, record):
-        return json.dumps({
+        log_record = {
             "timestamp": datetime.utcnow().isoformat(),
             "level": record.levelname,
-            "service": "products-service",
+            "service": SERVICE_NAME,
             "message": record.getMessage()
-        })
+        }
+        span = trace.get_current_span()
+        if span and span.get_span_context().trace_id:
+            ctx = span.get_span_context()
+            log_record["trace_id"] = format(ctx.trace_id, '032x')
+            log_record["span_id"] = format(ctx.span_id, '016x')
+        return json.dumps(log_record)
 
 
 handler = logging.StreamHandler()
@@ -65,17 +74,8 @@ logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# =============================================================================
-# Custom JSON encoder for Decimal types
-# =============================================================================
-class DecimalEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            return float(obj)
-        return super().default(obj)
-
-
-app.json.encoder = DecimalEncoder
+# Note: Decimal-to-float conversion is handled explicitly in each route handler
+# to ensure compatibility with Flask 3.x JSON serialization.
 
 
 # =============================================================================

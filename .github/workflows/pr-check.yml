@@ -1,9 +1,9 @@
 # =============================================================================
-# PR Validation Pipeline — Build & Scan Only (No Push to GCR)
+# PR Validation Pipeline — Build & Scan Only (No Push to ECR)
 # =============================================================================
-# Triggers on pull requests targeting the main branch when app code changes.
+# Triggers on pull requests targeting the app branch when app code changes.
 # Builds all 4 services in parallel and runs Trivy vulnerability scans.
-# Does NOT push images to GCR — that only happens on merge via ci.yml.
+# Does NOT push images to ECR — that only happens on merge via ci.yml.
 # Gives developers fast security feedback before code is merged.
 # =============================================================================
 
@@ -12,13 +12,13 @@ name: "PR — Build & Scan"
 on:
   pull_request:
     branches:
-      - "Deloitte-US/HU-DevOps-26-yourname"
+      - "HU-DevOps-26-highai"
     paths:
       - "app/**"
       - ".github/workflows/pr-check.yml"
 
 permissions:
-  id-token: write         # Required for OIDC authentication to GCP
+  id-token: write         # Required for OIDC authentication
   contents: read          # Read-only — PRs should never write to repo
   pull-requests: write    # Required to post scan results as PR comment
   security-events: write  # Required for SARIF upload to Security tab
@@ -165,7 +165,7 @@ jobs:
             **Severity threshold:** CRITICAL only
 
             > See the **Security** tab and **Artifacts** for detailed Trivy scan results.
-            > Full CI (build + push to GCR) runs after merge.`;
+            > Full CI (build + push to ECR) runs after merge.`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,

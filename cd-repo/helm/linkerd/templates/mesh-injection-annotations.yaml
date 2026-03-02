@@ -1,9 +1,75 @@
-{{- range .Values.meshNamespaces }}
+# =============================================================================
+# Linkerd Mesh Injection — Namespace Annotations
+# =============================================================================
+# Instead of creating new Namespace resources (which would conflict with the
+# namespaces chart), this uses a Job to annotate existing namespaces for
+# Linkerd sidecar injection. The namespaces chart is the single source of
+# truth for namespace creation.
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: linkerd-inject-namespaces
+  namespace: {{ (index .Values.meshNamespaces 0) }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: linkerd-ns-annotator
+    spec:
+      serviceAccountName: linkerd-ns-annotator
+      restartPolicy: Never
+      containers:
+        - name: annotate
+          image: bitnami/kubectl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              {{- range .Values.meshNamespaces }}
+              kubectl annotate namespace {{ . }} linkerd.io/inject=enabled --overwrite
+              {{- end }}
+              echo "Linkerd injection annotations applied"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
 ---
 apiVersion: v1
-kind: Namespace
+kind: ServiceAccount
 metadata:
-  name: {{ . }}
-  annotations:
-    linkerd.io/inject: enabled
-{{- end }}
+  name: linkerd-ns-annotator
+  namespace: {{ (index .Values.meshNamespaces 0) }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: linkerd-ns-annotator
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: linkerd-ns-annotator
+subjects:
+  - kind: ServiceAccount
+    name: linkerd-ns-annotator
+    namespace: {{ (index .Values.meshNamespaces 0) }}
+roleRef:
+  kind: ClusterRole
+  name: linkerd-ns-annotator
+  apiGroup: rbac.authorization.k8s.io

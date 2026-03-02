@@ -3,6 +3,7 @@
 # =============================================================================
 # Creates: GitHub Actions OIDC provider + IAM role for CI/CD pipeline
 # This allows GitHub Actions to assume an AWS role without stored credentials.
+# Supports multiple branches (IAC-DAY1 for Terraform, app branch for CI).
 # =============================================================================
 
 locals {
@@ -33,6 +34,8 @@ resource "aws_iam_openid_connect_provider" "github" {
 # -----------------------------------------------------------------------------
 # IAM Role for GitHub Actions
 # -----------------------------------------------------------------------------
+# Allows all branches in the repo to assume this role.
+# Both IAC-DAY1 (Terraform) and HU-DevOps-26-highai (CI) need access.
 resource "aws_iam_role" "github_actions" {
   name = "${var.project_name}-${var.environment}-github-actions-role"
 
@@ -50,7 +53,7 @@ resource "aws_iam_role" "github_actions" {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
           }
           StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/${var.github_branch}"
+            "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:*"
           }
         }
       }
@@ -63,7 +66,7 @@ resource "aws_iam_role" "github_actions" {
 }
 
 # -----------------------------------------------------------------------------
-# Policy Attachments
+# Policy Attachments — Infrastructure management
 # -----------------------------------------------------------------------------
 resource "aws_iam_role_policy_attachment" "github_eks" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
@@ -87,5 +90,13 @@ resource "aws_iam_role_policy_attachment" "github_s3" {
 
 resource "aws_iam_role_policy_attachment" "github_dynamodb" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+  role       = aws_iam_role.github_actions.name
+}
+
+# -----------------------------------------------------------------------------
+# Policy Attachment — ECR push/pull for CI pipeline
+# -----------------------------------------------------------------------------
+resource "aws_iam_role_policy_attachment" "github_ecr" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
   role       = aws_iam_role.github_actions.name
 }

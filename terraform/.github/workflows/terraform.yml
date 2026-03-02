@@ -34,7 +34,7 @@ permissions:
 
 env:
   TF_WORKING_DIR: terraform/environments/dev
-  AWS_REGION: eu-west-1
+  AWS_REGION: us-west-1
 
 jobs:
   terraform:
@@ -100,7 +100,6 @@ jobs:
         env:
           TF_VAR_github_org: ${{ secrets.TF_VAR_github_org }}
           TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
-          TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
           TF_VAR_aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
           TF_VAR_owner: ${{ secrets.TF_VAR_owner }}
         continue-on-error: true
@@ -151,6 +150,5 @@ jobs:
         env:
           TF_VAR_github_org: ${{ secrets.TF_VAR_github_org }}
           TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
-          TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
           TF_VAR_aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
           TF_VAR_owner: ${{ secrets.TF_VAR_owner }}

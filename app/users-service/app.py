@@ -16,15 +16,19 @@ from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry import trace
+
+SERVICE_NAME = "users-service"
 
 
 def setup_otel(app):
     endpoint = os.environ.get('OTEL_EXPORTER_OTLP_ENDPOINT', '')
     if not endpoint:
         return
-    provider = TracerProvider()
+    resource = Resource.create({"service.name": SERVICE_NAME})
+    provider = TracerProvider(resource=resource)
     provider.add_span_processor(
         BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
     )
@@ -49,12 +53,19 @@ setup_otel(app)
 # =============================================================================
 class JSONFormatter(logging.Formatter):
     def format(self, record):
-        return json.dumps({
+        log_record = {
             "timestamp": datetime.utcnow().isoformat(),
             "level": record.levelname,
-            "service": "users-service",
+            "service": SERVICE_NAME,
             "message": record.getMessage()
-        })
+        }
+        # Correlate logs with trace IDs for observability
+        span = trace.get_current_span()
+        if span and span.get_span_context().trace_id:
+            ctx = span.get_span_context()
+            log_record["trace_id"] = format(ctx.trace_id, '032x')
+            log_record["span_id"] = format(ctx.span_id, '016x')
+        return json.dumps(log_record)
 
 
 handler = logging.StreamHandler()

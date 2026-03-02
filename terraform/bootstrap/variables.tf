@@ -1,7 +1,7 @@
 variable "aws_region" {
   description = "AWS region for the state backend"
   type        = string
-  default     = "eu-west-1"
+  default     = "us-west-1"
 }
 
 variable "aws_account_id" {

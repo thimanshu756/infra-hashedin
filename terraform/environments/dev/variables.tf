@@ -9,7 +9,7 @@
 variable "aws_region" {
   description = "AWS region"
   type        = string
-  default     = "eu-west-1"
+  default     = "us-west-1"
 }
 
 variable "aws_account_id" {
@@ -56,7 +56,7 @@ variable "private_subnet_cidrs" {
 variable "availability_zones" {
   description = "Availability zones for subnets"
   type        = list(string)
-  default     = ["eu-west-1a", "eu-west-1b"]
+  default     = ["us-west-1a", "us-west-1b"]
 }
 
 # --- EKS ---
@@ -111,16 +111,4 @@ variable "github_branch" {
   description = "GitHub branch allowed to assume the OIDC role"
   type        = string
   default     = "IAC-DAY1"
-}
-
-# --- GCP ---
-variable "gcp_project_id" {
-  description = "GCP project ID for GCR prerequisites"
-  type        = string
-}
-
-variable "gcp_region" {
-  description = "GCP region"
-  type        = string
-  default     = "us-central1"
 }

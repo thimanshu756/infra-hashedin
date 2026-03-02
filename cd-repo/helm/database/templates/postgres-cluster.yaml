@@ -57,6 +57,11 @@ spec:
           memory: {{ .Values.pgbouncer.resources.limits.memory | quote }}
       {{- end }}
 
+  # Run init SQL on first startup to create application tables
+  databaseInitSQL:
+    name: postgres-init-sql
+    key: init.sql
+
   # Backup disabled — not needed for this assignment (saves resources)
   backups:
     pgbackrest:

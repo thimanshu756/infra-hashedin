@@ -7,9 +7,8 @@ spec:
   description: EKS Assignment Project — all microservices and platform components
 
   # Source repos ArgoCD is allowed to deploy from
-  # TODO: Replace YOUR_ORG/YOUR_CD_REPO with your actual CD repo
   sourceRepos:
-    - "https://github.com/YOUR_ORG/YOUR_CD_REPO"
+    - "https://github.com/Deloitte-DT-Training/HU-DevOps-26-highai-cd"
 
   # Destinations ArgoCD is allowed to deploy to
   destinations:

@@ -7,9 +7,9 @@
 
 terraform {
   backend "s3" {
-    bucket         = "eks-assignment-dev-tfstate-979154185782"
+    bucket         = "eks-assignment-dev-tfstate-YOUR_AWS_ACCOUNT_ID"
     key            = "environments/dev/terraform.tfstate"
-    region         = "eu-west-1"
+    region         = "us-west-1"
     dynamodb_table = "eks-assignment-dev-tflock"
     encrypt        = true
   }

@@ -34,9 +34,8 @@ spec:
       project: eks-assignment
 
       source:
-        # TODO: Replace YOUR_ORG/YOUR_CD_REPO with your actual CD repo
-        repoURL: https://github.com/YOUR_ORG/YOUR_CD_REPO
-        targetRevision: HU-DEVOPS-26-yourname
+        repoURL: https://github.com/Deloitte-DT-Training/HU-DevOps-26-highai-cd
+        targetRevision: main
         path: "helm/{{service}}"
 
       destination:

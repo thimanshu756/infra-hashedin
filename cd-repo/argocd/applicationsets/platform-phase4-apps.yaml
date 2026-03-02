@@ -24,9 +24,8 @@ spec:
   project: eks-assignment
 
   source:
-    # TODO: Replace YOUR_ORG/YOUR_CD_REPO with your actual CD repo
-    repoURL: https://github.com/YOUR_ORG/YOUR_CD_REPO
-    targetRevision: HU-DEVOPS-26-yourname
+    repoURL: https://github.com/Deloitte-DT-Training/HU-DevOps-26-highai-cd
+    targetRevision: main
     path: helm/database
 
   destination:
@@ -61,9 +60,8 @@ spec:
   project: eks-assignment
 
   source:
-    # TODO: Replace YOUR_ORG/YOUR_CD_REPO with your actual CD repo
-    repoURL: https://github.com/YOUR_ORG/YOUR_CD_REPO
-    targetRevision: HU-DEVOPS-26-yourname
+    repoURL: https://github.com/Deloitte-DT-Training/HU-DevOps-26-highai-cd
+    targetRevision: main
     path: helm/api-gateway
 
   destination:
@@ -98,8 +96,8 @@ metadata:
 spec:
   project: eks-assignment
   source:
-    repoURL: https://github.com/YOUR_ORG/YOUR_CD_REPO
-    targetRevision: HU-DEVOPS-26-yourname
+    repoURL: https://github.com/Deloitte-DT-Training/HU-DevOps-26-highai-cd
+    targetRevision: main
     path: helm/monitoring
   destination:
     server: https://kubernetes.default.svc
@@ -129,8 +127,8 @@ metadata:
 spec:
   project: eks-assignment
   source:
-    repoURL: https://github.com/YOUR_ORG/YOUR_CD_REPO
-    targetRevision: HU-DEVOPS-26-yourname
+    repoURL: https://github.com/Deloitte-DT-Training/HU-DevOps-26-highai-cd
+    targetRevision: main
     path: helm/logging
   destination:
     server: https://kubernetes.default.svc

@@ -56,13 +56,13 @@ output "github_actions_role_arn" {
   value       = module.oidc_github.github_actions_role_arn
 }
 
-# --- GCR ---
-output "gcr_service_account_email" {
-  description = "Email of the GCR pusher service account"
-  value       = module.gcr.service_account_email
+# --- ECR ---
+output "ecr_repository_urls" {
+  description = "Map of service name to ECR repository URL"
+  value       = module.ecr.repository_urls
 }
 
-output "gcr_workload_identity_provider" {
-  description = "Workload Identity Provider for GitHub Actions GCP OIDC"
-  value       = module.gcr.workload_identity_provider
+output "ecr_registry_url" {
+  description = "ECR registry URL (ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com)"
+  value       = module.ecr.registry_url
 }

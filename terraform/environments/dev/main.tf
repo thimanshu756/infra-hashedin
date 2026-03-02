@@ -13,10 +13,6 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 5.0"
-    }
     tls = {
       source  = "hashicorp/tls"
       version = "~> 4.0"
@@ -38,11 +34,6 @@ provider "aws" {
       ManagedBy   = "terraform"
     }
   }
-}
-
-provider "google" {
-  project = var.gcp_project_id
-  region  = var.gcp_region
 }
 
 # NOTE: Kubernetes provider removed — EKS managed node groups automatically
@@ -118,16 +109,12 @@ module "oidc_github" {
 }
 
 # -----------------------------------------------------------------------------
-# GCR Prerequisites Module (GCP)
+# ECR Module — Container Registry for microservice images
 # -----------------------------------------------------------------------------
-module "gcr" {
-  source = "../../modules/gcr"
+module "ecr" {
+  source = "../../modules/ecr"
 
-  project_name   = var.project_name
-  environment    = var.environment
-  owner          = var.owner
-  gcp_project_id = var.gcp_project_id
-  gcp_region     = var.gcp_region
-  github_org     = var.github_org
-  github_repo    = var.github_repo
+  project_name = var.project_name
+  environment  = var.environment
+  owner        = var.owner
 }

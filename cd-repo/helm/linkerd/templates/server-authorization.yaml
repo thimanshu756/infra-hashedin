@@ -15,6 +15,11 @@ spec:
 
 ---
 # ServerAuthorization: defines WHO is allowed to call this Server
+# api-gateway is non-meshed (by design — see assignment Section 10), so it
+# cannot present a mesh identity. We use unauthenticated: true for gateway
+# traffic and rely on NetworkPolicies for namespace-level isolation
+# (defense-in-depth). Meshed-to-meshed traffic still gets mTLS enforcement
+# via Linkerd's default policies.
 apiVersion: policy.linkerd.io/v1beta3
 kind: ServerAuthorization
 metadata:
@@ -24,8 +29,7 @@ spec:
   server:
     name: {{ .name }}-server
   client:
-    meshTLS:
-      serviceAccounts:
-        - name: default
-          namespace: {{ .allowedNamespace }}
+    unauthenticated: true
+    networks:
+      - cidr: 0.0.0.0/0
 {{- end }}

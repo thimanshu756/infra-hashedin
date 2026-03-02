@@ -6,6 +6,32 @@ from datetime import datetime
 from flask import Flask, render_template, jsonify
 
 # =============================================================================
+# OpenTelemetry Setup
+# =============================================================================
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry import trace
+
+SERVICE_NAME = "frontend"
+
+
+def setup_otel(app):
+    endpoint = os.environ.get('OTEL_EXPORTER_OTLP_ENDPOINT', '')
+    if not endpoint:
+        return
+    resource = Resource.create({"service.name": SERVICE_NAME})
+    provider = TracerProvider(resource=resource)
+    provider.add_span_processor(
+        BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
+    )
+    trace.set_tracer_provider(provider)
+    FlaskInstrumentor().instrument_app(app)
+
+
+# =============================================================================
 # App + Prometheus Metrics
 # =============================================================================
 app = Flask(__name__)
@@ -13,17 +39,25 @@ app = Flask(__name__)
 from prometheus_flask_exporter import PrometheusMetrics
 metrics = PrometheusMetrics(app)
 
+setup_otel(app)
+
 # =============================================================================
 # JSON Logging
 # =============================================================================
 class JSONFormatter(logging.Formatter):
     def format(self, record):
-        return json.dumps({
+        log_record = {
             "timestamp": datetime.utcnow().isoformat(),
             "level": record.levelname,
-            "service": "frontend",
+            "service": SERVICE_NAME,
             "message": record.getMessage()
-        })
+        }
+        span = trace.get_current_span()
+        if span and span.get_span_context().trace_id:
+            ctx = span.get_span_context()
+            log_record["trace_id"] = format(ctx.trace_id, '032x')
+            log_record["span_id"] = format(ctx.span_id, '016x')
+        return json.dumps(log_record)
 
 
 handler = logging.StreamHandler()

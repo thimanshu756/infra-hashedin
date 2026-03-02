@@ -6,7 +6,7 @@
 # This is the only manual step — ArgoCD manages everything after this.
 #
 # Usage: ./bootstrap-argocd.sh <cd-repo-url> <cd-repo-pat>
-# Example: ./bootstrap-argocd.sh https://github.com/thimanshu756/hitakshi-cd ghp_xxxxx
+# Example: ./bootstrap-argocd.sh https://github.com/Deloitte-DT-Training/HU-DevOps-26-highai-cd ghp_xxxxx
 # =============================================================================
 
 set -euo pipefail
@@ -123,10 +123,10 @@ echo "  kubectl get applications -n argocd -w"
 echo ""
 echo "Expected state:"
 echo "  namespaces       → Synced / Healthy"
-echo "  gcr-pull-secret  → Synced / Degraded (empty dockerconfigjson until create-gcr-secret.sh runs)"
 echo "  users-service    → Synced / Degraded (no db-credentials secret until Phase 4)"
 echo "  products-service → Synced / Degraded (no db-credentials secret until Phase 4)"
 echo "  orders-service   → Synced / Degraded (no db-credentials secret until Phase 4)"
 echo "  frontend         → Synced / Healthy (no DB dependency)"
 echo ""
-echo "Next step: Run create-gcr-secret.sh to enable image pulling from GCR"
+echo "Note: ECR pull secrets are NOT needed — EKS nodes have IAM-based ECR access"
+echo "Next step: Wait for ArgoCD to sync, then proceed to Phase 4"

@@ -12,8 +12,7 @@ cd-repo/
 │   ├── users-service/               ← Users CRUD backend
 │   ├── products-service/            ← Products CRUD backend
 │   ├── orders-service/              ← Orders CRUD backend
-│   ├── frontend/                    ← Frontend web app
-│   └── gcr-pull-secret/             ← GCR imagePullSecret (sync wave -1)
+│   └── frontend/                    ← Frontend web app
 │
 ├── argocd/                          ← ArgoCD configuration
 │   ├── install/values.yaml          ← ArgoCD Helm install values
@@ -22,7 +21,7 @@ cd-repo/
 │
 ├── scripts/                         ← One-time setup scripts
 │   ├── bootstrap-argocd.sh          ← Install ArgoCD + apply apps
-│   └── create-gcr-secret.sh         ← Create GCR pull secrets
+│   └── create-sealed-secrets.sh     ← Create sealed DB credentials
 │
 └── README.md
 ```
@@ -34,25 +33,27 @@ ArgoCD deploys resources in this order:
 | Wave | Component | Why |
 |------|-----------|-----|
 | -2 | namespaces | Must exist before any resource is created |
-| -1 | gcr-pull-secret | Must exist before pods try to pull images |
-| 0 | microservices | All 4 services deploy last |
+| -1 | sealed-secrets, security, resource-governance | Core prerequisites |
+| 0 | microservices | All 4 services deploy after prerequisites |
+| 1 | keda, api-gateway | Post-microservice components |
+| 2 | monitoring, logging | Observability stack |
+| 3 | linkerd-config | Service mesh policies |
 
 ## Prerequisites
 
 - `kubectl` configured with EKS cluster access (via bastion SSM or local)
 - `helm` v3 installed
-- GCR service account key JSON file (from Terraform output)
 - GitHub PAT with `repo` scope for this CD repo
 
 ## Quick Start
 
 ### 1. Update Placeholder Values
 
-Replace `YOUR_ORG/YOUR_CD_REPO` and `YOUR_GCP_PROJECT_ID` in these files:
+Replace `YOUR_AWS_ACCOUNT_ID` in the Helm values files:
 
 ```bash
 # Find all placeholders
-grep -r "YOUR_ORG\|YOUR_CD_REPO\|YOUR_GCP_PROJECT_ID" --include="*.yaml" .
+grep -r "YOUR_AWS_ACCOUNT_ID" --include="*.yaml" .
 ```
 
 Files to update:
@@ -60,37 +61,18 @@ Files to update:
 - `helm/products-service/values.yaml` — image repository
 - `helm/orders-service/values.yaml` — image repository
 - `helm/frontend/values.yaml` — image repository
-- `argocd/projects/eks-assignment.yaml` — sourceRepos
-- `argocd/applicationsets/namespaces-app.yaml` — repoURL
-- `argocd/applicationsets/microservices-appset.yaml` — repoURL
-- `argocd/applicationsets/platform-appset.yaml` — repoURL
 
 ### 2. Bootstrap ArgoCD
 
 ```bash
 cd scripts
-chmod +x bootstrap-argocd.sh create-gcr-secret.sh
+chmod +x bootstrap-argocd.sh
 
 # Install ArgoCD and apply all ApplicationSets
-./bootstrap-argocd.sh https://github.com/YOUR_ORG/YOUR_CD_REPO ghp_YOUR_PAT
+./bootstrap-argocd.sh https://github.com/Deloitte-DT-Training/HU-DevOps-26-highai-cd ghp_YOUR_PAT
 ```
 
-### 3. Create GCR Pull Secrets
-
-```bash
-# Get GCR key from Terraform
-cd /path/to/terraform/environments/dev
-terraform output -raw gcr_service_account_key | base64 -d > /tmp/gcr-key.json
-
-# Create secrets in all namespaces
-cd /path/to/cd-repo/scripts
-./create-gcr-secret.sh /tmp/gcr-key.json
-
-# Clean up key file
-rm /tmp/gcr-key.json
-```
-
-### 4. Access ArgoCD UI
+### 3. Access ArgoCD UI
 
 ```bash
 kubectl port-forward svc/argocd-server -n argocd 8080:80
@@ -99,10 +81,18 @@ kubectl port-forward svc/argocd-server -n argocd 8080:80
 # Password: (printed by bootstrap script)
 ```
 
+## Image Registry — AWS ECR
+
+This project uses **AWS ECR** (Elastic Container Registry). EKS nodes have
+the `AmazonEC2ContainerRegistryReadOnly` IAM policy attached, so they can
+pull images from ECR **natively without imagePullSecrets**.
+
+Image format: `<ACCOUNT_ID>.dkr.ecr.us-west-1.amazonaws.com/<service>:<tag>`
+
 ## How Ongoing Deployments Work
 
 ```
-Developer pushes code → CI builds + scans → CI pushes to GCR
+Developer pushes code → CI builds + scans → CI pushes to ECR
     → CI updates values.yaml tag in THIS repo
     → ArgoCD detects change (polls every 3 min)
     → ArgoCD syncs new image to EKS
@@ -111,7 +101,7 @@ Developer pushes code → CI builds + scans → CI pushes to GCR
 The CI pipeline (`ci.yml` in the app repo) automatically:
 1. Builds Docker images
 2. Scans with Trivy
-3. Pushes to GCR
+3. Pushes to ECR
 4. Updates `helm/<service>/values.yaml` → `tag: "<7-char-sha>"`
 5. Commits with `[skip ci]` to prevent loops
 
@@ -126,7 +116,8 @@ kubectl get applications -n argocd
 # Expected output:
 # NAME               SYNC STATUS   HEALTH STATUS
 # namespaces         Synced        Healthy
-# gcr-pull-secret    Synced        Healthy
+# sealed-secrets     Synced        Healthy
+# security           Synced        Healthy
 # users-service      Synced        Degraded  ← Expected until Phase 4
 # products-service   Synced        Degraded  ← Expected until Phase 4
 # orders-service     Synced        Degraded  ← Expected until Phase 4
@@ -166,7 +157,7 @@ Before Phase 4 (database + secrets):
 
 | Problem | Cause | Fix |
 |---------|-------|-----|
-| `ImagePullBackOff` | GCR pull secret missing or invalid | Run `create-gcr-secret.sh` again |
+| `ImagePullBackOff` | ECR repo doesn't exist or node IAM role missing | Verify ECR repos exist and nodes have `AmazonEC2ContainerRegistryReadOnly` |
 | `CreateContainerConfigError` | `db-credentials` secret missing | Expected — fixed in Phase 4 |
 | Application stuck `OutOfSync` | Repo credentials wrong | Check `cd-repo-secret` in argocd namespace |
 | `ComparisonError` | Helm template syntax error | Run `helm template helm/<service>` locally to debug |

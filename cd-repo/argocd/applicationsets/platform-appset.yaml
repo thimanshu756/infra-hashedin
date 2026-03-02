@@ -20,9 +20,7 @@ spec:
     - list:
         elements:
           # Wave -1: Core prerequisites
-          - component: gcr-pull-secret
-            namespace: argocd
-            syncWave: "-1"
+          # NOTE: gcr-pull-secret removed — ECR uses IAM-based access (no pull secret needed)
           - component: sealed-secrets
             namespace: sealed-secrets
             syncWave: "-1"
@@ -53,8 +51,8 @@ spec:
       project: eks-assignment
 
       source:
-        repoURL: https://github.com/YOUR_ORG/YOUR_CD_REPO
-        targetRevision: HU-DEVOPS-26-yourname
+        repoURL: https://github.com/Deloitte-DT-Training/HU-DevOps-26-highai-cd
+        targetRevision: main
         path: "helm/{{component}}"
 
       destination:
